@@ -3,7 +3,8 @@ SPDX-FileCopyrightText: 2024 shadPS4 Emulator Project
 SPDX-License-Identifier: GPL-2.0-or-later
 -->
 
-ShadPs4Plus is a fork of the ShadPS4 emulator that restores PKG support.
+# ShadPs4Plus is a fork of the ShadPS4 emulator that restores PKG support.
+
 Below is the readme from ShadPS4, unchanged.
 
 -------------------------------------------------------------------------
