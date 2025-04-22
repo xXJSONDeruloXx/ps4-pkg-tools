@@ -1,0 +1,1 @@
+cmake .. -G Ninja -DENABLE_QT_GUI=ON -DCMAKE_CXX_COMPILER=clang++.exe -DCMAKE_C_COMPILER=clang.exe -DCMAKE_PREFIX_PATH=D:\dev\qt\6.9.0\msvc2022_64
