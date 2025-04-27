@@ -32,7 +32,7 @@ jobs:
           ./build-linux.sh
       
       - name: Upload Docker-built artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ps4-pkg-tool-linux-docker
           path: linux-build/ps4-pkg-tool

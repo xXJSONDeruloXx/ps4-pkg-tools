@@ -44,7 +44,7 @@ jobs:
           }
       
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ps4-pkg-tool-windows-${{ matrix.configuration }}
           path: windows-build/
