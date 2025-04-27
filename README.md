@@ -45,7 +45,7 @@ ps4-pkg-tool --dir ~/PS4Games
 ### Prerequisites
 
 - CMake (3.24 or later)
-- C++23 compatible compiler (GCC 12+, Clang 15+, MSVC 2022+)
+- C++23 compatible compiler (GCC 12+, Clang 15+)
 - Dependencies:
   - zlib
   - cryptopp (Crypto++ library)
@@ -55,7 +55,7 @@ ps4-pkg-tool --dir ~/PS4Games
 
 #### GitHub Actions Automated Builds
 
-This repository uses GitHub Actions to automatically build the tool for macOS, Linux, and Windows environments. You can:
+This repository uses GitHub Actions to automatically build the tool for macOS and Linux environments. You can:
 
 1. Download the latest prebuilt binaries from the Actions tab (available after a successful workflow run)
 2. Fork the repository and use the workflows in your own repository
@@ -64,7 +64,6 @@ This repository uses GitHub Actions to automatically build the tool for macOS, L
 The available workflows are:
 - `build.yml`: Builds both macOS and Linux binaries on GitHub's runners
 - `docker-build.yml`: Builds a Linux binary using Docker
-- `windows-build.yml`: Builds Windows binaries (Debug and Release configurations)
 
 #### macOS
 
@@ -128,23 +127,6 @@ cd ps4-pkg-tools
 ```
 
 The resulting Linux binary will be placed in `linux-build/ps4-pkg-tool` and can be run on most modern Linux distributions.
-
-#### Windows
-
-```bash
-# Clone repository with submodules
-git clone --recursive https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
-cd ps4-pkg-tools
-
-# OR
-git clone https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
-git submodule update --init --recursive
-
-# Configure and build (Visual Studio Developer Command Prompt)
-mkdir build && cd build
-cmake -DBUILD_PKG_TOOL=ON -DCMAKE_CXX_STANDARD=23 ..
-cmake --build . --config Release
-```
 
 ## Technical Details
 
