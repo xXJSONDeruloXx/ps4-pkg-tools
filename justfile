@@ -19,6 +19,12 @@ all: setup-repo build
 clean:
     rm -rf build
 
+# Reset and clean everything
+clean-slate:
+    rm -rf externals/*/
+    rm -rf build
+    git submodule deinit -f --all || true
+
 # Rebuild from scratch
 rebuild: clean all
 

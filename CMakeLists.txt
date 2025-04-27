@@ -9,8 +9,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Add module path for custom Find scripts
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-# Required dependencies
-find_package(ZLIB REQUIRED)
+# Use zlib from submodule
+set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "Build zlib examples" FORCE)
+set(ZLIB_BUILD_TESTS OFF CACHE BOOL "Build zlib tests" FORCE)
+add_subdirectory(${CMAKE_SOURCE_DIR}/externals/zlib EXCLUDE_FROM_ALL)
+
+# Configure cryptopp from submodule
+set(CRYPTOPP_BUILD_TESTING OFF CACHE BOOL "Build cryptopp tests")
+set(CRYPTOPP_BUILD_DOCUMENTATION OFF CACHE BOOL "Build cryptopp documentation") 
+set(CRYPTOPP_INSTALL OFF CACHE BOOL "Install cryptopp library")
+set(CRYPTOPP_SOURCES ${CMAKE_SOURCE_DIR}/externals/cryptopp)
+add_subdirectory(${CMAKE_SOURCE_DIR}/externals/cryptopp-cmake EXCLUDE_FROM_ALL)
 
 # Include paths for external libraries
 include_directories(
@@ -18,6 +27,8 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/externals/toml11/include
     ${CMAKE_SOURCE_DIR}/externals/tracy/public
     ${CMAKE_SOURCE_DIR}/externals/fmt/include
+    ${CMAKE_SOURCE_DIR}/externals                # Add this line to include cryptopp directly
+    ${CMAKE_SOURCE_DIR}/externals/zlib           # Include zlib headers
 )
 
 # Build fmt from source
@@ -67,11 +78,11 @@ add_executable(ps4-pkg-tool
     ${CORE_FILES}
 )
 
-# Link dependencies
+# Link dependencies - use zlib target instead of ZLIB::ZLIB
 target_link_libraries(ps4-pkg-tool PRIVATE 
     fmt::fmt
-    cryptopp-static
-    ZLIB::ZLIB
+    cryptopp::cryptopp
+    zlibstatic              # Use zlibstatic instead of ZLIB::ZLIB
 )
 
 # Install target

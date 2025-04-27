@@ -18,3 +18,12 @@
     path = externals/tracy
     url = https://github.com/shadps4-emu/tracy.git
     shallow = true
+[submodule "externals/fmt"]
+    path = externals/fmt
+    url = https://github.com/fmtlib/fmt.git
+[submodule "externals/cryptopp"]
+    path = externals/cryptopp
+    url = https://github.com/weidai11/cryptopp.git
+[submodule "externals/zlib"]
+	path = externals/zlib
+	url = https://github.com/madler/zlib.git

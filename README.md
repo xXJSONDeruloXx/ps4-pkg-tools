@@ -46,11 +46,15 @@ ps4-pkg-tool /path/to/DLC-CUSAXXXXX.pkg ~/DLC_Extracted
 
 ```bash
 # Install dependencies with Homebrew
-brew install cmake fmt cryptopp
+brew install cmake
 
 # Clone repository with submodules
-git clone --recursive https://github.com/yourusername/ps4-pkg-tools.git
+git clone --recursive https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
 cd ps4-pkg-tools
+
+# OR
+git clone https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
+git submodule update --init --recursive
 
 # Configure and build
 mkdir build && cd build
@@ -65,8 +69,12 @@ make
 sudo apt install cmake libfmt-dev libcrypto++-dev zlib1g-dev
 
 # Clone repository with submodules
-git clone --recursive https://github.com/yourusername/ps4-pkg-tools.git
+git clone --recursive https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
 cd ps4-pkg-tools
+
+# OR
+git clone https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
+git submodule update --init --recursive
 
 # Configure and build
 mkdir build && cd build
@@ -78,8 +86,12 @@ make
 
 ```bash
 # Clone repository with submodules
-git clone --recursive https://github.com/yourusername/ps4-pkg-tools.git
+git clone --recursive https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
 cd ps4-pkg-tools
+
+# OR
+git clone https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
+git submodule update --init --recursive
 
 # Configure and build (Visual Studio Developer Command Prompt)
 mkdir build && cd build
