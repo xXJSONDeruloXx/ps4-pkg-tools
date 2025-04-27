@@ -20,13 +20,22 @@ bool ExtractSingleFile(PKG& pkg, int index) {
 }
 
 int main(int argc, char** argv) {
-    if (argc != 3) {
-        std::cerr << "Usage: ps4-pkg-tool <path/to/pkg> <path/to/output>\n";
+    if (argc < 2 || argc > 3) {
+        std::cerr << "Usage: ps4-pkg-tool <path/to/pkg> [path/to/output]\n";
+        std::cerr << "       If output path is omitted, the PKG will be extracted to its parent directory\n";
         return 1;
     }
 
     std::filesystem::path pkgPath = argv[1];
-    std::filesystem::path outDir = argv[2];
+    std::filesystem::path outDir;
+    
+    // Use the PKG's parent directory as the default output if no output directory is specified
+    if (argc == 2) {
+        outDir = pkgPath.parent_path();
+        std::cout << "No output directory specified. Using PKG parent directory: " << outDir << std::endl;
+    } else {
+        outDir = argv[2];
+    }
 
     if (!std::filesystem::exists(pkgPath)) {
         std::cerr << "Error: PKG file not found: " << pkgPath << "\n";
