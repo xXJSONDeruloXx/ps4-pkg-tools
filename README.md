@@ -75,6 +75,10 @@ make
 
 #### Linux
 
+There are two ways to build on Linux: directly or using Docker.
+
+##### Direct Build (on Linux systems)
+
 ```bash
 # Install dependencies
 sudo apt install cmake libfmt-dev libcrypto++-dev zlib1g-dev
@@ -83,15 +87,27 @@ sudo apt install cmake libfmt-dev libcrypto++-dev zlib1g-dev
 git clone --recursive https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
 cd ps4-pkg-tools
 
-# OR
-git clone https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
-git submodule update --init --recursive
-
 # Configure and build
 mkdir build && cd build
 cmake -DBUILD_PKG_TOOL=ON ..
 make
 ```
+
+##### Cross-compilation with Docker (from macOS or Linux)
+
+```bash
+# Clone repository with submodules
+git clone --recursive https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
+cd ps4-pkg-tools
+
+# Option 1: Build only Linux binary
+./build-linux.sh
+
+# Option 2: Build both macOS and Linux binaries in one command
+./build.sh
+```
+
+The resulting Linux binary will be placed in `linux-build/ps4-pkg-tool` and can be run on most modern Linux distributions.
 
 #### Windows
 
