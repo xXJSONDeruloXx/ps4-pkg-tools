@@ -1,17 +1,14 @@
-name: Create Release
+name: Create Production Release
 
-# Initially running on pull requests for validation
-# Later we can change this to only run on pushes to main branch
+# This workflow creates official releases when code is merged to main
 on:
-  pull_request:
+  push:
     branches: [ main ]
   # Allow manual triggering from the Actions tab
   workflow_dispatch:
 
-# Add explicit permissions to allow release creation
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   # This job requires the build jobs to complete first
@@ -23,18 +20,31 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Get version
         id: get_version
-        # Extract version from CMakeLists.txt or use the PR number as fallback
+        # Extract version from CMakeLists.txt
         run: |
           VERSION=$(grep -oP 'project\(ps4-pkg-tools VERSION \K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt || echo "0.1.0")
-          PR_NUMBER=$(echo $GITHUB_REF | grep -oP 'refs/pull/\K[0-9]+')
-          if [ -n "$PR_NUMBER" ]; then
-            echo "version=${VERSION}-pr${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get commit messages since last tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$PREVIOUS_TAG" ]; then
+            # If no previous tag, get all commits
+            CHANGELOG=$(git log --pretty=format:"* %s (%an)" | head -n 10)
           else
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            # Otherwise, get commits since last tag
+            CHANGELOG=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"* %s (%an)" | head -n 10)
           fi
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release
         id: create_release
@@ -47,13 +57,15 @@ jobs:
           body: |
             PS4-PKG-Tools version ${{ steps.get_version.outputs.version }}
             
-            Automated release build from GitHub Actions.
+            ## Changes
+            ${{ steps.changelog.outputs.CHANGELOG }}
             
+            ## Binaries
             This release includes binaries for:
             - macOS
             - Linux
-          draft: true
-          prerelease: ${{ github.event_name == 'pull_request' }}
+          draft: false
+          prerelease: false
 
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
