@@ -6,6 +6,9 @@
 /Release/
 /x64/
 /x86/
+/mac-build/
+/linux-build/
+/windows-build/
 
 # Prerequisites
 *.d
