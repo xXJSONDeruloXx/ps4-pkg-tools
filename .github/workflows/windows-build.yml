@@ -27,7 +27,8 @@ jobs:
         run: |
           mkdir -Force build
           cd build
-          cmake -DBUILD_PKG_TOOL=ON -DCMAKE_CXX_STANDARD=23 ..
+          # Use our Windows patch file for CryptoPP compatibility
+          cmake -DBUILD_PKG_TOOL=ON -DCMAKE_CXX_STANDARD=23 -DCMAKE_MODULE_PATH="${{ github.workspace }}/.github" -C "${{ github.workspace }}/.github/windows-cryptopp-patch.cmake" ..
       
       - name: Build
         run: |
