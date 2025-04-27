@@ -1,0 +1,78 @@
+name: Build PS4-PKG-Tools
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  # Allow manual triggering from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+      
+      - name: Install dependencies
+        run: |
+          brew install cmake
+          # Add other dependencies your project needs
+      
+      - name: Build
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DBUILD_PKG_TOOL=ON -DCMAKE_CXX_STANDARD=23 ..
+          make -j$(sysctl -n hw.ncpu)
+      
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ps4-pkg-tool-macos
+          path: build/ps4-pkg-tool
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libssl-dev zlib1g-dev
+          
+          # Install newer CMake version (3.24+)
+          wget https://github.com/Kitware/CMake/releases/download/v3.28.3/cmake-3.28.3-linux-x86_64.sh -O cmake-installer.sh
+          chmod +x cmake-installer.sh
+          sudo mkdir -p /opt/cmake
+          sudo ./cmake-installer.sh --skip-license --prefix=/opt/cmake
+          sudo ln -sf /opt/cmake/bin/cmake /usr/local/bin/cmake
+          cmake --version
+          
+          # Install a newer gcc/g++ with C++23 support
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y gcc-13 g++-13
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
+          gcc --version
+          g++ --version
+      
+      - name: Build
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DBUILD_PKG_TOOL=ON -DCMAKE_CXX_STANDARD=23 ..
+          make -j$(nproc)
+      
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ps4-pkg-tool-linux
+          path: build/ps4-pkg-tool
