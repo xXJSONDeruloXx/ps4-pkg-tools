@@ -11,7 +11,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 # Required dependencies
 find_package(ZLIB REQUIRED)
-find_package(cryptopp REQUIRED)
 
 # Include paths for external libraries
 include_directories(
@@ -71,7 +70,7 @@ add_executable(ps4-pkg-tool
 # Link dependencies
 target_link_libraries(ps4-pkg-tool PRIVATE 
     fmt::fmt
-    cryptopp::cryptopp 
+    cryptopp-static
     ZLIB::ZLIB
 )
 

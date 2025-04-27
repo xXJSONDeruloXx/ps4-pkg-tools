@@ -54,7 +54,7 @@ cd ps4-pkg-tools
 
 # Configure and build
 mkdir build && cd build
-cmake -DBUILD_PKG_TOOL=ON ..
+cmake ..
 make
 ```
 
