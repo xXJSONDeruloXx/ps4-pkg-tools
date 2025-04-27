@@ -23,27 +23,12 @@ jobs:
       - name: Setup Visual Studio environment
         uses: ilammy/msvc-dev-cmd@v1
       
-      - name: Apply CryptoPP patch directly
-        run: |
-          $patch = @"
-          # CryptoPP compatibility patches for Windows
-          add_definitions(-DCRYPTOPP_DISABLE_ASM)
-          add_definitions(-DCRYPTOPP_DISABLE_MIXED_ASM)
-          add_definitions(-DCRYPTOPP_DISABLE_SSE2)
-          add_definitions(-DCRYPTOPP_DISABLE_SSSE3)
-          add_definitions(-DCRYPTOPP_DISABLE_UNCAUGHT_EXCEPTION)
-          add_definitions(-DCRYPTOPP_MAINTAIN_BACKWARDS_COMPATIBILITY_562)
-          add_definitions(-DCRYPTOPP_DISABLE_INTEL_ASM)
-          message(STATUS "Applied Windows-specific CryptoPP compatibility patches")
-          "@
-          
-          Set-Content -Path "cryptopp_patch.cmake" -Value $patch
-      
       - name: Configure CMake
         run: |
           mkdir -Force build
           cd build
-          cmake -DBUILD_PKG_TOOL=ON -DCMAKE_CXX_STANDARD=23 -C "../cryptopp_patch.cmake" ..
+          # Include our patch files using the CMAKE_MODULE_PATH variable
+          cmake -DBUILD_PKG_TOOL=ON -DCMAKE_CXX_STANDARD=23 -DCMAKE_MODULE_PATH="${{ github.workspace }}/.github" -DCMAKE_TOOLCHAIN_FILE="../.github/MSVCCompatibility.cmake" ..
       
       - name: Build
         run: |

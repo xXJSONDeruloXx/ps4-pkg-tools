@@ -9,6 +9,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Add module path for custom Find scripts
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
+# Include MSVC compatibility fixes on Windows
+if(MSVC)
+  message(STATUS "Windows build detected - applying MSVC compatibility patches")
+  if(EXISTS "${CMAKE_MODULE_PATH}/MSVCCompatibility.cmake")
+    include("${CMAKE_MODULE_PATH}/MSVCCompatibility.cmake")
+  elseif(EXISTS "${CMAKE_TOOLCHAIN_FILE}")
+    include("${CMAKE_TOOLCHAIN_FILE}")
+  endif()
+  
+  # Add Windows-specific compile definitions
+  add_definitions(-DNOMINMAX -D_CRT_SECURE_NO_WARNINGS)
+endif()
+
 # Use zlib from submodule
 set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "Build zlib examples" FORCE)
 set(ZLIB_BUILD_TESTS OFF CACHE BOOL "Build zlib tests" FORCE)
@@ -30,6 +43,11 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/externals                # Add this line to include cryptopp directly
     ${CMAKE_SOURCE_DIR}/externals/zlib           # Include zlib headers
 )
+
+# On Windows, include our compatibility header directory
+if(MSVC)
+  include_directories(BEFORE "${CMAKE_SOURCE_DIR}/.github")
+endif()
 
 # Build fmt from source
 add_subdirectory(${CMAKE_SOURCE_DIR}/externals/fmt EXCLUDE_FROM_ALL)
@@ -84,6 +102,11 @@ target_link_libraries(ps4-pkg-tool PRIVATE
     cryptopp::cryptopp
     zlibstatic              # Use zlibstatic instead of ZLIB::ZLIB
 )
+
+# On Windows, we need to add additional system libraries
+if(MSVC)
+  target_link_libraries(ps4-pkg-tool PRIVATE ws2_32)
+endif()
 
 # Install target
 install(TARGETS ps4-pkg-tool RUNTIME DESTINATION bin)
