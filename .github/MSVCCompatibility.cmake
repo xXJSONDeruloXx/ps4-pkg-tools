@@ -2,40 +2,34 @@
 # Custom module to handle MSVC-specific compatibility fixes
 
 if(MSVC)
-  message(STATUS "Applying MSVC compatibility fixes for CryptoPP")
+  message(STATUS "Applying comprehensive MSVC compatibility fixes for CryptoPP")
   
-  # Add our patch header directory to include paths
+  # Add our patch header directory to include paths (high priority)
   include_directories(BEFORE "${CMAKE_CURRENT_LIST_DIR}")
   
-  # Add compile definitions to fix allocator issues
-  add_compile_definitions(
-    CRYPTOPP_DISABLE_ASM
-    CRYPTOPP_DISABLE_MIXED_ASM
-    CRYPTOPP_DISABLE_SSE2
-    CRYPTOPP_DISABLE_SSSE3
-    CRYPTOPP_DISABLE_UNCAUGHT_EXCEPTION
-    CRYPTOPP_DISABLE_INTEL_ASM
-    CRYPTOPP_MAINTAIN_BACKWARDS_COMPATIBILITY_562
-    CRYPTOPP_MANUALLY_INSTANTIATE_TEMPLATES
-    CRYPTOPP_DISABLE_TEMPLATE_SPECIALIZATION
-    CRYPTOPP_INHIBIT_INSTANTIATE_TEMPLATES=1
-    CRYPTOPP_CRYPTLIB_H_NO_EXTERN_TEMPLATE_TEMPLATE
-    CRYPTOPP_STRCIPHR_MANUALLY_INSTANTIATE=1
-    _SILENCE_CXX17_OLD_ALLOCATOR_MEMBERS_DEPRECATION_WARNING
-    _SILENCE_CXX20_CISO646_REMOVED_WARNING
-    NOMINMAX
-  )
-  
-  # Force C++17 minimum for MSVC (even though we're using C++23)
-  # This ensures better STL compatibility with CryptoPP
+  # Force C++17 minimum for MSVC to ensure STL compatibility with CryptoPP
+  # Needed for proper allocator support
   if(CMAKE_CXX_STANDARD LESS 17)
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
   endif()
   
   # Add MSVC-specific compiler flags for better standards compliance
-  add_compile_options(/MP /bigobj /Zc:__cplusplus /permissive-)
+  # /Zc:__cplusplus - Ensures correct __cplusplus macro value for better C++ conformance
+  # /permissive- - Enforces standards compliance
+  # /bigobj - Supports large object files needed for template-heavy code
+  # /FI"cryptopp_wrapper.h" - Forces inclusion of our wrapper header in every source file
+  add_compile_options(/MP /bigobj /Zc:__cplusplus /permissive- /FI"${CMAKE_CURRENT_LIST_DIR}/cryptopp_wrapper.h")
   
-  # Disable specific warnings that might appear with CryptoPP
+  # Suppress CryptoPP-related warnings
   add_compile_options(/wd4100 /wd4505 /wd4127 /wd4189 /wd4996)
+  
+  # Add compile definitions for Windows 
+  add_compile_definitions(
+    NOMINMAX
+    WIN32_LEAN_AND_MEAN
+  )
+  
+  # We define almost nothing here now because our forced-included wrapper handles it
+  message(STATUS "Using cryptopp_wrapper.h to intercept and fix CryptoPP headers")
 endif()
