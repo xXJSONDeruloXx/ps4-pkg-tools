@@ -1,17 +1,14 @@
 name: Create Release
 
-# Initially running on pull requests for validation
-# Later we can change this to only run on pushes to main branch
+# Only create releases when code is merged to main branch
 on:
-  pull_request:
+  push:
     branches: [ main ]
   # Allow manual triggering from the Actions tab
   workflow_dispatch:
 
-# Add explicit permissions to allow release creation
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   # This job requires the build jobs to complete first
@@ -23,18 +20,35 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Get version
         id: get_version
-        # Extract version from CMakeLists.txt or use the PR number as fallback
+        # Extract version from CMakeLists.txt
         run: |
-          VERSION=$(grep -oP 'project\(ps4-pkg-tools VERSION \K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt || echo "0.1.0")
-          PR_NUMBER=$(echo $GITHUB_REF | grep -oP 'refs/pull/\K[0-9]+')
-          if [ -n "$PR_NUMBER" ]; then
-            echo "version=${VERSION}-pr${PR_NUMBER}" >> $GITHUB_OUTPUT
+          VERSION=$(grep -oP 'project\(ps4-pkg-tools VERSION \K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt 2>/dev/null || echo "0.1.0")
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get commit messages since last tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$PREVIOUS_TAG" ]; then
+            # If no previous tag, get all commits (limit to last 15)
+            CHANGELOG=$(git log -n 15 --pretty=format:"* %h %s ([%an](https://github.com/$( echo $GITHUB_REPOSITORY | cut -d'/' -f1 )/%an))" | sed 's/^/  /')
+            COMMIT_RANGE="First 15 commits"
           else
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            # Otherwise, get commits since last tag
+            CHANGELOG=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"* %h %s ([%an](https://github.com/$( echo $GITHUB_REPOSITORY | cut -d'/' -f1 )/%an))" | sed 's/^/  /')
+            COMMIT_RANGE="Changes since ${PREVIOUS_TAG}"
           fi
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "**${COMMIT_RANGE}**" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release
         id: create_release
@@ -45,15 +59,20 @@ jobs:
           tag_name: v${{ steps.get_version.outputs.version }}
           release_name: PS4-PKG-Tools v${{ steps.get_version.outputs.version }}
           body: |
-            PS4-PKG-Tools version ${{ steps.get_version.outputs.version }}
+            # PS4-PKG-Tools version ${{ steps.get_version.outputs.version }}
             
-            Automated release build from GitHub Actions.
+            ## Changes
+            ${{ steps.changelog.outputs.CHANGELOG }}
             
+            ## Binaries
             This release includes binaries for:
             - macOS
             - Linux
-          draft: true
-          prerelease: ${{ github.event_name == 'pull_request' }}
+            
+            ## SHA-256 Checksums
+            _Added during asset upload_
+          draft: false
+          prerelease: false
 
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
@@ -81,6 +100,14 @@ jobs:
           tar -czvf ../../ps4-pkg-tool-linux.tar.gz ps4-pkg-tool
           cd ../..
 
+      - name: Generate checksums
+        run: |
+          echo "## SHA-256 Checksums" > checksums.txt
+          echo '```' >> checksums.txt
+          sha256sum ps4-pkg-tool-macos.zip ps4-pkg-tool-linux.tar.gz >> checksums.txt
+          echo '```' >> checksums.txt
+          cat checksums.txt
+
       - name: Upload macOS Release Asset
         uses: actions/upload-release-asset@v1
         env:
@@ -100,6 +127,32 @@ jobs:
           asset_path: ./ps4-pkg-tool-linux.tar.gz
           asset_name: ps4-pkg-tool-linux.tar.gz
           asset_content_type: application/gzip
+
+      - name: Update release body with checksums
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const checksums = fs.readFileSync('checksums.txt', 'utf8');
+            
+            const { owner, repo } = context.repo;
+            const release_id = '${{ steps.create_release.outputs.id }}';
+            
+            const release = await github.rest.repos.getRelease({
+              owner,
+              repo,
+              release_id
+            });
+            
+            const updatedBody = release.data.body.replace('_Added during asset upload_', checksums);
+            
+            await github.rest.repos.updateRelease({
+              owner,
+              repo,
+              release_id,
+              body: updatedBody
+            });
 
 # Include the build jobs from build.yml so that the workflow is self-contained
 # This ensures the release job has access to the build artifacts
