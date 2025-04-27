@@ -10,23 +10,34 @@ ps4-pkg-tool is a CLI (Command Line Interface) utility that provides the ability
 - Decrypt the PKG content (game files, sce_sys directory, etc.)
 - Reconstruct the complete file hierarchy
 - Process PFS (PlayStation File System) images within the PKG
+- Batch process multiple PKG files with a single command
 
 This tool uses the core PKG extraction and decryption functionality from the shadPS4 emulator project, stripped down into a simple command-line utility.
 
 ## Usage
 
 ```bash
-ps4-pkg-tool <path/to/pkg> <path/to/output>
+# For a single PKG file
+ps4-pkg-tool <path/to/pkg> [path/to/output]
+
+# For batch processing a directory of PKG files
+ps4-pkg-tool --dir <directory/with/pkgs> [path/to/output]
 ```
 
 ### Examples
 
 ```bash
-# Extract a game to the Desktop
+# Extract a game to the Desktop (explicit output path)
 ps4-pkg-tool /path/to/Game-CUSAXXXXX.pkg ~/Desktop/GameExtracted
 
-# Extract a DLC package
-ps4-pkg-tool /path/to/DLC-CUSAXXXXX.pkg ~/DLC_Extracted
+# Extract a DLC package (with automatic output path in same directory as PKG)
+ps4-pkg-tool /path/to/DLC-CUSAXXXXX.pkg
+
+# Extract all PKG files in a directory and its subdirectories
+ps4-pkg-tool --dir ~/PS4Games ~/Extracted/AllGames
+
+# Extract all PKG files in a directory using that directory for output
+ps4-pkg-tool --dir ~/PS4Games
 ```
 
 ## Building from Source
