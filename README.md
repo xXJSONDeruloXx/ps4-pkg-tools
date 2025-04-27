@@ -55,7 +55,7 @@ ps4-pkg-tool --dir ~/PS4Games
 
 #### GitHub Actions Automated Builds
 
-This repository uses GitHub Actions to automatically build the tool for both macOS and Linux environments. You can:
+This repository uses GitHub Actions to automatically build the tool for macOS, Linux, and Windows environments. You can:
 
 1. Download the latest prebuilt binaries from the Actions tab (available after a successful workflow run)
 2. Fork the repository and use the workflows in your own repository
@@ -64,6 +64,7 @@ This repository uses GitHub Actions to automatically build the tool for both mac
 The available workflows are:
 - `build.yml`: Builds both macOS and Linux binaries on GitHub's runners
 - `docker-build.yml`: Builds a Linux binary using Docker
+- `windows-build.yml`: Builds Windows binaries (Debug and Release configurations)
 
 #### macOS
 
