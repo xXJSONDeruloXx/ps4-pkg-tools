@@ -9,6 +9,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Add module path for custom Find scripts
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
+# For Windows builds, we need more debugging info
+if(WIN32)
+  # Enable verbose output for debugging
+  set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "Enable verbose output from Makefile builds" FORCE)
+endif()
+
 # Include MSVC compatibility fixes on Windows
 if(MSVC)
   message(STATUS "Windows build detected - applying MSVC compatibility patches")
@@ -39,15 +45,37 @@ set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "Build zlib examples" FORCE)
 set(ZLIB_BUILD_TESTS OFF CACHE BOOL "Build zlib tests" FORCE)
 add_subdirectory(${CMAKE_SOURCE_DIR}/externals/zlib EXCLUDE_FROM_ALL)
 
+# On Windows, create dummy headers directory before including cryptopp
+if(WIN32)
+  # Ensure win_compat directory exists
+  file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/externals/cryptopp/win_compat")
+  
+  # Create dummy headers for Windows compatibility
+  file(WRITE "${CMAKE_SOURCE_DIR}/externals/cryptopp/win_compat/unistd.h" "// Empty dummy header for Windows compatibility\n")
+  file(WRITE "${CMAKE_SOURCE_DIR}/externals/cryptopp/win_compat/pthread.h" "// Dummy pthread header for Windows compatibility\n#define PTHREAD_CANCEL_ENABLE 0\n")
+  
+  # Define global compile definitions for Windows
+  add_compile_definitions(
+    CRYPTOPP_NO_UNISTD_H
+    CRYPTOPP_DISABLE_PTHREADS
+    CRYPTOPP_DISABLE_ASM
+    _USE_MATH_DEFINES
+  )
+endif()
+
 # Configure cryptopp from submodule
 set(CRYPTOPP_BUILD_TESTING OFF CACHE BOOL "Build cryptopp tests")
 set(CRYPTOPP_BUILD_DOCUMENTATION OFF CACHE BOOL "Build cryptopp documentation") 
 set(CRYPTOPP_INSTALL OFF CACHE BOOL "Install cryptopp library")
 set(CRYPTOPP_SOURCES ${CMAKE_SOURCE_DIR}/externals/cryptopp)
 
-# On Windows, disable warnings in cryptopp
+# On Windows, disable warnings in cryptopp and disable ASM files
 if(WIN32)
+  # Disable cryptopp warnings
   set(CRYPTOPP_WARNING_OPTIONS "/W0;/WX-" CACHE STRING "Warning options for cryptopp" FORCE)
+  
+  # Change cryptopp build options for Windows
+  set(CRYPTOPP_DISABLE_ASM ON CACHE BOOL "Disable ASM in cryptopp" FORCE)
 endif()
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/externals/cryptopp-cmake EXCLUDE_FROM_ALL)
@@ -64,12 +92,11 @@ include_directories(
 
 # On Windows, include our compatibility header directory
 if(MSVC)
-  include_directories(BEFORE "${CMAKE_SOURCE_DIR}/.github")
-  
-  # Create a win_compat directory if it doesn't exist
-  if(NOT EXISTS "${CMAKE_SOURCE_DIR}/externals/cryptopp/win_compat")
-    file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/externals/cryptopp/win_compat")
-  endif()
+  # Add the win_compat directory to the include path first (highest priority)
+  include_directories(BEFORE 
+    "${CMAKE_SOURCE_DIR}/externals/cryptopp/win_compat"
+    "${CMAKE_SOURCE_DIR}/.github"
+  )
 endif()
 
 # Build fmt from source

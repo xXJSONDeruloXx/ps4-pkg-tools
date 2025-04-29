@@ -24,55 +24,83 @@ add_compile_definitions(
     NOMINMAX
 )
 
-# Apply C/C++ specific options only to C/C++ files
+# Apply C/C++ specific options only to C/C++ files - fixing malformed path issue
 foreach(flag ${MSVC_C_CXX_FLAGS})
     add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:${flag}>)
 endforeach()
 
 # Special flags for external dependencies to disable warning as errors
 function(apply_external_library_fixes)
-    message(STATUS "Applying fixes for external libraries")
+    message(STATUS "Applying warning level fixes for external libraries")
     
-    # Turn off warnings as errors for external libraries
-    # Use target_compile_options to ensure it only affects specific targets
-    if(TARGET cryptopp)
-        message(STATUS "Applying fixes for CryptoPP")
-        target_compile_options(cryptopp PRIVATE 
-            /WX- # Disable warnings as errors
-            /W0  # Disable warnings
-        )
-    endif()
+    # Create list of external targets to modify
+    set(external_targets
+        cryptopp
+        cryptopp-static
+        fmt
+        zlibstatic
+    )
     
-    if(TARGET cryptopp-static)
-        message(STATUS "Applying fixes for CryptoPP-static")
-        target_compile_options(cryptopp-static PRIVATE 
-            /WX- # Disable warnings as errors
-            /W0  # Disable warnings
-        )
-    endif()
-    
-    # Add any other external libraries that need special fixes here
+    # Apply fixes to each target if it exists
+    foreach(target ${external_targets})
+        if(TARGET ${target})
+            message(STATUS "Applying warning level fixes for ${target}")
+            # Disable warnings as errors and reduce warning level
+            target_compile_options(${target} PRIVATE 
+                /WX- # Disable warnings as errors
+                /W0  # Disable warnings
+            )
+        endif()
+    endforeach()
 endfunction()
 
 # Register a callback to be called after all targets have been defined
-# This ensures our function runs after the external targets are created
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.19.0")
     cmake_language(DEFER CALL apply_external_library_fixes)
 else()
-    # For older CMake versions, we may need to call this function manually
-    # via a macro or in another part of the build
-    variable_watch(CMAKE_CURRENT_LIST_DIR apply_external_library_fixes)
+    # For older CMake versions, use a variable watch
+    variable_watch(CMAKE_CONFIGURATION_TYPES apply_external_library_fixes)
 endif()
 
 # Treat warnings as errors in CI builds, but only for our own code
-# (already disabled for external libraries above)
 if(DEFINED ENV{CI})
-  # Use a regex pattern to exclude external libraries
-  add_compile_options($<$<AND:$<COMPILE_LANGUAGE:C,CXX>,$<NOT:$<IN_LIST:$<TARGET_PROPERTY:NAME>,cryptopp;cryptopp-static>>>:/WX>)
+    # Create a function to apply warning settings to our code
+    function(apply_own_code_warning_settings)
+        # Get all targets in the project
+        get_property(all_targets DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY BUILDSYSTEM_TARGETS)
+        
+        # List of known external targets to exclude
+        set(external_targets
+            cryptopp
+            cryptopp-static
+            fmt
+            zlibstatic
+            zlib
+        )
+        
+        # Apply warnings as errors to our targets only
+        foreach(target ${all_targets})
+            # Skip if target is in external list
+            list(FIND external_targets ${target} target_idx)
+            if(${target_idx} EQUAL -1)
+                # Apply warnings as errors only to our code
+                get_target_property(target_type ${target} TYPE)
+                if(NOT "${target_type}" STREQUAL "INTERFACE_LIBRARY")
+                    message(STATUS "Enabling warnings as errors for ${target}")
+                    target_compile_options(${target} PRIVATE /WX)
+                endif()
+            endif()
+        endforeach()
+    endfunction()
+    
+    # Register this function to run after targets are created
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.19.0")
+        cmake_language(DEFER CALL apply_own_code_warning_settings)
+    endif()
 endif()
 
 # Common Windows libraries that may be needed
 if(WIN32)
-  # Make sure we link against these Windows-specific libraries
-  link_libraries(ws2_32.lib Shlwapi.lib)
+    # Make sure we link against these Windows-specific libraries
+    link_libraries(ws2_32.lib Shlwapi.lib)
 endif()
