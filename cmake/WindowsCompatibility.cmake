@@ -18,6 +18,7 @@ if(WIN32)
     #include <io.h>
     #include <direct.h>
     #include <windows.h>
+    #include <sys/types.h>
 
     // POSIX function replacements
     #define fseeko _fseeki64
@@ -33,7 +34,12 @@ if(WIN32)
     #define PTHREAD_CANCEL_ENABLE 0
     #endif
 
-    // Missing POSIX types
+    // Define missing POSIX types for Windows
+    #ifndef _OFF_T_DEFINED
+    typedef long long off_t;
+    #define _OFF_T_DEFINED
+    #endif
+
     #ifndef HAVE_OFF64_T
     typedef long long off64_t;
     #define HAVE_OFF64_T 1
@@ -60,10 +66,10 @@ if(WIN32)
         OVERLAPPED overlapped = {0};
         DWORD bytes_read = 0;
         
-        overlapped.Offset = offset & 0xFFFFFFFF;
-        overlapped.OffsetHigh = (offset >> 32) & 0xFFFFFFFF;
+        overlapped.Offset = (DWORD)(offset & 0xFFFFFFFF);
+        overlapped.OffsetHigh = (DWORD)((offset >> 32) & 0xFFFFFFFF);
         
-        if (ReadFile(h, buf, count, &bytes_read, &overlapped)) {
+        if (ReadFile(h, buf, (DWORD)count, &bytes_read, &overlapped)) {
             return bytes_read;
         }
         return -1;
@@ -82,10 +88,10 @@ if(WIN32)
         OVERLAPPED overlapped = {0};
         DWORD bytes_written = 0;
         
-        overlapped.Offset = offset & 0xFFFFFFFF;
-        overlapped.OffsetHigh = (offset >> 32) & 0xFFFFFFFF;
+        overlapped.Offset = (DWORD)(offset & 0xFFFFFFFF);
+        overlapped.OffsetHigh = (DWORD)((offset >> 32) & 0xFFFFFFFF);
         
-        if (WriteFile(h, buf, count, &bytes_written, &overlapped)) {
+        if (WriteFile(h, buf, (DWORD)count, &bytes_written, &overlapped)) {
             return bytes_written;
         }
         return -1;
