@@ -24,8 +24,6 @@ if(WIN32)
     #define fseeeko64 _fseeki64
     #define ftello _ftelli64
     #define ftello64 _ftelli64
-    #define pread _pread
-    #define pwrite _pwrite
     #define ftruncate _chsize
     #define mkdir(path, mode) _mkdir(path)
     #define usleep(usec) Sleep((usec)/1000)
@@ -41,9 +39,19 @@ if(WIN32)
     #define HAVE_OFF64_T 1
     #endif
 
+    // Define ssize_t for Windows
+    #ifndef _SSIZE_T_DEFINED
+    #ifdef _WIN64
+    typedef __int64 ssize_t;
+    #else
+    typedef int ssize_t;
+    #endif
+    #define _SSIZE_T_DEFINED
+    #endif
+
     // Provide standard POSIX-style file I/O functions
     #ifndef HAVE_PREAD
-    static inline ssize_t pread(int fd, void *buf, size_t count, off_t offset) {
+    static inline ssize_t _pread(int fd, void *buf, size_t count, off_t offset) {
         HANDLE h = (HANDLE)_get_osfhandle(fd);
         if (h == INVALID_HANDLE_VALUE) {
             return -1;
@@ -60,11 +68,12 @@ if(WIN32)
         }
         return -1;
     }
+    #define pread _pread
     #define HAVE_PREAD 1
     #endif
 
     #ifndef HAVE_PWRITE
-    static inline ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset) {
+    static inline ssize_t _pwrite(int fd, const void *buf, size_t count, off_t offset) {
         HANDLE h = (HANDLE)_get_osfhandle(fd);
         if (h == INVALID_HANDLE_VALUE) {
             return -1;
@@ -81,6 +90,7 @@ if(WIN32)
         }
         return -1;
     }
+    #define pwrite _pwrite
     #define HAVE_PWRITE 1
     #endif
 
