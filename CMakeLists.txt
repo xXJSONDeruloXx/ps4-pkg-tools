@@ -18,8 +18,20 @@ if(MSVC)
     include("${CMAKE_TOOLCHAIN_FILE}")
   endif()
   
-  # Add Windows-specific compile definitions
-  add_definitions(-DNOMINMAX -D_CRT_SECURE_NO_WARNINGS)
+  # Include CryptoPP compatibility fixes for Windows
+  if(EXISTS "${CMAKE_MODULE_PATH}/CryptoppCompatibility.cmake")
+    include("${CMAKE_MODULE_PATH}/CryptoppCompatibility.cmake")
+  endif()
+endif()
+
+# Define options to handle platform-specific issues
+option(BUILD_WITHOUT_PTHREAD "Disable pthread support" OFF)
+option(DISABLE_OFF64_T_CHECK "Disable off64_t size check" OFF)
+
+# For Windows, we need to disable pthread and off64_t checks
+if(WIN32)
+  set(BUILD_WITHOUT_PTHREAD ON)
+  set(DISABLE_OFF64_T_CHECK ON)
 endif()
 
 # Use zlib from submodule
@@ -32,6 +44,12 @@ set(CRYPTOPP_BUILD_TESTING OFF CACHE BOOL "Build cryptopp tests")
 set(CRYPTOPP_BUILD_DOCUMENTATION OFF CACHE BOOL "Build cryptopp documentation") 
 set(CRYPTOPP_INSTALL OFF CACHE BOOL "Install cryptopp library")
 set(CRYPTOPP_SOURCES ${CMAKE_SOURCE_DIR}/externals/cryptopp)
+
+# On Windows, disable warnings in cryptopp
+if(WIN32)
+  set(CRYPTOPP_WARNING_OPTIONS "/W0;/WX-" CACHE STRING "Warning options for cryptopp" FORCE)
+endif()
+
 add_subdirectory(${CMAKE_SOURCE_DIR}/externals/cryptopp-cmake EXCLUDE_FROM_ALL)
 
 # Include paths for external libraries
@@ -47,6 +65,11 @@ include_directories(
 # On Windows, include our compatibility header directory
 if(MSVC)
   include_directories(BEFORE "${CMAKE_SOURCE_DIR}/.github")
+  
+  # Create a win_compat directory if it doesn't exist
+  if(NOT EXISTS "${CMAKE_SOURCE_DIR}/externals/cryptopp/win_compat")
+    file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/externals/cryptopp/win_compat")
+  endif()
 endif()
 
 # Build fmt from source
@@ -105,7 +128,7 @@ target_link_libraries(ps4-pkg-tool PRIVATE
 
 # On Windows, we need to add additional system libraries
 if(MSVC)
-  target_link_libraries(ps4-pkg-tool PRIVATE ws2_32)
+  target_link_libraries(ps4-pkg-tool PRIVATE ws2_32 Shlwapi)
 endif()
 
 # Install target
