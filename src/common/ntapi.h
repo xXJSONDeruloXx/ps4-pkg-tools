@@ -509,11 +509,15 @@ typedef struct _TEB {                             /* win32/win64 */
 static_assert(offsetof(TEB, DeallocationStack) ==
               0x1478); /* The only member we care about at the moment */
 
+// Prevent redefinition of _QUEUE_USER_APC_FLAGS which is already defined in Windows SDK headers
+#ifndef _QUEUE_USER_APC_FLAGS_DEFINED
+#define _QUEUE_USER_APC_FLAGS_DEFINED
 typedef enum _QUEUE_USER_APC_FLAGS {
     QueueUserApcFlagsNone,
     QueueUserApcFlagsSpecialUserApc,
     QueueUserApcFlagsMaxValue
 } QUEUE_USER_APC_FLAGS;
+#endif // _QUEUE_USER_APC_FLAGS_DEFINED
 
 typedef union _USER_APC_OPTION {
     ULONG_PTR UserApcFlags;

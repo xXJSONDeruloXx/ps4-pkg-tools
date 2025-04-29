@@ -14,8 +14,8 @@ jobs:
   # This job requires the build jobs to complete first
   create-release:
     name: Create Release
-    # Only run after both build jobs have completed successfully
-    needs: [build-macos, build-linux]
+    # Only run after all build jobs have completed successfully
+    needs: [build-macos, build-linux, build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -68,6 +68,7 @@ jobs:
             This release includes binaries for:
             - macOS
             - Linux
+            - Windows
             
             ## SHA-256 Checksums
             _Added during asset upload_
@@ -86,6 +87,12 @@ jobs:
           name: ps4-pkg-tool-linux
           path: ./artifacts/linux
 
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ps4-pkg-tool-windows
+          path: ./artifacts/windows
+
       - name: Package macOS binary
         run: |
           cd ./artifacts/macos
@@ -100,11 +107,17 @@ jobs:
           tar -czvf ../../ps4-pkg-tool-linux.tar.gz ps4-pkg-tool
           cd ../..
 
+      - name: Package Windows binary
+        run: |
+          cd ./artifacts/windows
+          zip -r ../../ps4-pkg-tool-windows.zip ps4-pkg-tool.exe
+          cd ../..
+
       - name: Generate checksums
         run: |
           echo "## SHA-256 Checksums" > checksums.txt
           echo '```' >> checksums.txt
-          sha256sum ps4-pkg-tool-macos.zip ps4-pkg-tool-linux.tar.gz >> checksums.txt
+          sha256sum ps4-pkg-tool-macos.zip ps4-pkg-tool-linux.tar.gz ps4-pkg-tool-windows.zip >> checksums.txt
           echo '```' >> checksums.txt
           cat checksums.txt
 
@@ -127,6 +140,16 @@ jobs:
           asset_path: ./ps4-pkg-tool-linux.tar.gz
           asset_name: ps4-pkg-tool-linux.tar.gz
           asset_content_type: application/gzip
+
+      - name: Upload Windows Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./ps4-pkg-tool-windows.zip
+          asset_name: ps4-pkg-tool-windows.zip
+          asset_content_type: application/zip
 
       - name: Update release body with checksums
         uses: actions/github-script@v6
@@ -154,7 +177,7 @@ jobs:
               body: updatedBody
             });
 
-# Include the build jobs from build.yml so that the workflow is self-contained
+# Include the build jobs from build workflow so that the workflow is self-contained
 # This ensures the release job has access to the build artifacts
   build-macos:
     runs-on: macos-latest
@@ -166,7 +189,6 @@ jobs:
       - name: Install dependencies
         run: |
           brew install cmake
-          # Add other dependencies your project needs
       
       - name: Build
         run: |
@@ -223,3 +245,49 @@ jobs:
         with:
           name: ps4-pkg-tool-linux
           path: build/ps4-pkg-tool
+          
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+          
+      - name: Setup Visual Studio environment
+        uses: ilammy/msvc-dev-cmd@v1
+      
+      # Ensure CMake directory exists
+      - name: Create cmake directory if it doesn't exist
+        run: |
+          if (-not (Test-Path -Path "cmake")) { New-Item -ItemType Directory -Path "cmake" }
+        
+      - name: Create build directory
+        run: mkdir -p build-windows
+      
+      - name: Configure CMake
+        run: |
+          cd build-windows
+          cmake -G "Visual Studio 17 2022" -A x64 -DBUILD_PKG_TOOL=ON ..
+      
+      - name: Build
+        run: |
+          cd build-windows
+          cmake --build . --config Release
+        continue-on-error: false
+      
+      # Additional diagnostic step for failures
+      - name: Check build output
+        if: ${{ failure() }}
+        run: |
+          Get-ChildItem -Path build-windows -Include *.log -Recurse | ForEach-Object {
+              Write-Host "=== $($_.FullName) ==="
+              Get-Content $_.FullName
+              Write-Host "================="
+          }
+      
+      - name: Upload Windows artifact
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ps4-pkg-tool-windows
+          path: build-windows/Release/ps4-pkg-tool.exe

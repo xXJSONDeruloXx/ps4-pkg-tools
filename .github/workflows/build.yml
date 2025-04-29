@@ -76,3 +76,85 @@ jobs:
         with:
           name: ps4-pkg-tool-linux
           path: build/ps4-pkg-tool
+          
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+          
+      - name: Setup Visual Studio environment
+        uses: ilammy/msvc-dev-cmd@v1
+      
+      # Ensure proper directories exist
+      - name: Create required directories
+        run: |
+          # Create cmake directory if it doesn't exist
+          New-Item -ItemType Directory -Path "cmake" -Force
+          
+          # Create cryptopp/win_compat for compatibility headers
+          New-Item -ItemType Directory -Path "externals/cryptopp/win_compat" -Force
+          
+          # Create dummy unistd.h for Windows compatibility
+          Set-Content -Path "externals/cryptopp/win_compat/unistd.h" -Value "// Dummy unistd.h for Windows compatibility"
+          
+          # Create dummy pthread.h for Windows compatibility
+          Set-Content -Path "externals/cryptopp/win_compat/pthread.h" -Value "// Dummy pthread header`n#define PTHREAD_CANCEL_ENABLE 0"
+          
+          # Create build directory
+          New-Item -ItemType Directory -Path "build-windows" -Force
+      
+      - name: Configure CMake
+        run: |
+          cd build-windows
+          cmake -G "Visual Studio 17 2022" -A x64 -DBUILD_PKG_TOOL=ON -DCMAKE_VERBOSE_MAKEFILE=ON ..
+      
+      - name: Build
+        run: |
+          cd build-windows
+          cmake --build . --config Release --verbose
+        continue-on-error: false
+      
+      # Additional diagnostic step for failures - more detailed than before
+      - name: Check build logs and diagnose issues
+        if: ${{ failure() }}
+        run: |
+          Write-Host "===== Collecting diagnostic information ====="
+          
+          # Check for error logs
+          Get-ChildItem -Path build-windows -Include *.log -Recurse | ForEach-Object {
+              Write-Host "=== $($_.FullName) ==="
+              Get-Content $_.FullName
+              Write-Host "================="
+          }
+          
+          # Check for cryptopp specific issues
+          if (Test-Path "build-windows/externals") {
+              Write-Host "=== CryptoPP Build Files ==="
+              Get-ChildItem -Path build-windows/externals/cryptopp-cmake -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+                  Write-Host $_.FullName
+              }
+          }
+          
+          # Print CMake cache to see build configuration
+          if (Test-Path "build-windows/CMakeCache.txt") {
+              Write-Host "=== CMakeCache.txt Excerpts ==="
+              Get-Content "build-windows/CMakeCache.txt" | Select-String "CRYPTOPP|WARNING|ERROR|ASM|CMAKE_CXX"
+          }
+          
+          # Check for specific files that might be causing issues
+          $problemFiles = @("rdrand.asm", "x64masm.asm", "x64dll.asm", "zdeflate.cpp", "integer.cpp")
+          foreach ($file in $problemFiles) {
+              $searchResults = Get-ChildItem -Path externals -Include $file -Recurse -ErrorAction SilentlyContinue
+              if ($searchResults) {
+                  Write-Host "Found potential problem file: $($searchResults.FullName)"
+              }
+          }
+      
+      - name: Upload Windows artifact
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ps4-pkg-tool-windows
+          path: build-windows/Release/ps4-pkg-tool.exe
