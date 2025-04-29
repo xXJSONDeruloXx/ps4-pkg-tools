@@ -31,15 +31,28 @@ cd build-windows
 echo.
 echo ===== Configuring PS4 PKG Tools for Windows =====
 cmake -G "Visual Studio 17 2022" -A x64 -DBUILD_PKG_TOOL=ON ..
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo ERROR: CMake configuration failed. Check the logs above for errors.
+    cd ..
+    exit /b 1
+)
 
 echo.
 echo ===== Building PS4 PKG Tools for Windows =====
-cmake --build . --config Release
+cmake --build . --config Release --verbose
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo ERROR: Build failed. Check the logs above for errors.
+    cd ..
+    exit /b 1
+)
 
 :: Check if the build was successful
 if not exist Release\ps4-pkg-tool.exe (
     echo.
-    echo ERROR: Build failed. Check the logs above for errors.
+    echo ERROR: Build completed but executable not found. Check the logs above for errors.
+    cd ..
     exit /b 1
 )
 

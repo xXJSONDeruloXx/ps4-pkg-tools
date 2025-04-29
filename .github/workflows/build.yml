@@ -86,9 +86,14 @@ jobs:
           
       - name: Setup Visual Studio environment
         uses: ilammy/msvc-dev-cmd@v1
+      
+      # Ensure CMake directory exists
+      - name: Create cmake directory if it doesn't exist
+        run: |
+          if (-not (Test-Path -Path "cmake")) { New-Item -ItemType Directory -Path "cmake" }
         
       - name: Create build directory
-        run: mkdir build-windows
+        run: mkdir -p build-windows
       
       - name: Configure CMake
         run: |
@@ -99,8 +104,20 @@ jobs:
         run: |
           cd build-windows
           cmake --build . --config Release
+        continue-on-error: false
+      
+      # Additional diagnostic step for failures
+      - name: Check build output
+        if: ${{ failure() }}
+        run: |
+          Get-ChildItem -Path build-windows -Include *.log -Recurse | ForEach-Object {
+              Write-Host "=== $($_.FullName) ==="
+              Get-Content $_.FullName
+              Write-Host "================="
+          }
       
       - name: Upload Windows artifact
+        if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
           name: ps4-pkg-tool-windows

@@ -4,27 +4,34 @@
 # This file contains compatibility fixes for building with MSVC on Windows
 message(STATUS "Applying MSVC compatibility fixes")
 
-# Force MSVC to use UTF-8 encoding for source files
-add_compile_options(/utf-8)
+# Only apply C/C++ specific options to C/C++ files
+set(MSVC_C_CXX_FLAGS
+    # Force MSVC to use UTF-8 encoding for source files
+    /utf-8
+    # Enable multi-processor compilation
+    /MP
+    # Increase object file section name length
+    /bigobj
+    # C++23 mode
+    /std:c++latest
+)
 
-# Enable multi-processor compilation
-add_compile_options(/MP)
+# These definitions can be applied to all files
+add_compile_definitions(
+    # Disable unsafe CRT function warnings (like fopen)
+    _CRT_SECURE_NO_WARNINGS
+    # Disable min/max macros from windows.h
+    NOMINMAX
+)
 
-# Disable unsafe CRT function warnings (like fopen)
-add_compile_options(/D_CRT_SECURE_NO_WARNINGS)
-
-# Disable min/max macros from windows.h
-add_compile_options(/DNOMINMAX)
-
-# Increase object file section name length
-add_compile_options(/bigobj)
-
-# C++23 mode (/std:c++latest)
-add_compile_options(/std:c++latest)
+# Apply C/C++ specific options only to C/C++ files
+foreach(flag ${MSVC_C_CXX_FLAGS})
+    add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:${flag}>)
+endforeach()
 
 # Treat warnings as errors in CI builds
 if(DEFINED ENV{CI})
-  add_compile_options(/WX)
+  add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/WX>)
 endif()
 
 # Common Windows libraries that may be needed
