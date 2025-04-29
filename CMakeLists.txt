@@ -28,6 +28,11 @@ if(MSVC)
   if(EXISTS "${CMAKE_MODULE_PATH}/CryptoppCompatibility.cmake")
     include("${CMAKE_MODULE_PATH}/CryptoppCompatibility.cmake")
   endif()
+  
+  # Include Windows POSIX compatibility fixes
+  if(EXISTS "${CMAKE_MODULE_PATH}/WindowsCompatibility.cmake")
+    include("${CMAKE_MODULE_PATH}/WindowsCompatibility.cmake")
+  endif()
 endif()
 
 # Define options to handle platform-specific issues
@@ -38,6 +43,15 @@ option(DISABLE_OFF64_T_CHECK "Disable off64_t size check" OFF)
 if(WIN32)
   set(BUILD_WITHOUT_PTHREAD ON)
   set(DISABLE_OFF64_T_CHECK ON)
+  
+  # Skip pthread checks on Windows
+  set(CMAKE_THREAD_PREFER_PTHREAD OFF CACHE BOOL "Prefer pthread" FORCE)
+  set(THREADS_PREFER_PTHREAD_FLAG OFF CACHE BOOL "Prefer pthread flag" FORCE)
+endif()
+
+# For non-Windows platforms, find pthread
+if(NOT WIN32)
+  find_package(Threads REQUIRED)
 endif()
 
 # Use zlib from submodule
@@ -60,6 +74,8 @@ if(WIN32)
     CRYPTOPP_DISABLE_PTHREADS
     CRYPTOPP_DISABLE_ASM
     _USE_MATH_DEFINES
+    HAVE_FSEEKO=1
+    HAVE_OFF64_T=1
   )
 endif()
 
@@ -95,8 +111,19 @@ if(MSVC)
   # Add the win_compat directory to the include path first (highest priority)
   include_directories(BEFORE 
     "${CMAKE_SOURCE_DIR}/externals/cryptopp/win_compat"
+    "${CMAKE_BINARY_DIR}/win_compat"
     "${CMAKE_SOURCE_DIR}/.github"
   )
+  
+  # Add additional precompiler directive to include our compatibility header
+  add_compile_definitions(
+    _CRT_SECURE_NO_WARNINGS
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+  )
+  
+  # Force include our POSIX compatibility header in all source files
+  add_compile_options(/FI"${CMAKE_BINARY_DIR}/win_compat/posix_compat.h")
 endif()
 
 # Build fmt from source
@@ -146,16 +173,18 @@ add_executable(ps4-pkg-tool
     ${CORE_FILES}
 )
 
-# Link dependencies - use zlib target instead of ZLIB::ZLIB
+# Link dependencies
 target_link_libraries(ps4-pkg-tool PRIVATE 
     fmt::fmt
     cryptopp::cryptopp
-    zlibstatic              # Use zlibstatic instead of ZLIB::ZLIB
+    zlibstatic
 )
 
-# On Windows, we need to add additional system libraries
+# Link platform-specific libraries
 if(MSVC)
   target_link_libraries(ps4-pkg-tool PRIVATE ws2_32 Shlwapi)
+elseif(THREADS_FOUND)
+  target_link_libraries(ps4-pkg-tool PRIVATE Threads::Threads)
 endif()
 
 # Install target
