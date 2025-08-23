@@ -89,24 +89,47 @@ set(CORE_FILES
     src/core/file_format/trp.cpp
 )
 
-# Build the CLI tool
-add_executable(ps4-pkg-tool
-    src/cli/main.cpp
+#---------------------------------------------
+# Shared library for PKG tool core (extraction logic)
+#---------------------------------------------
+add_library(ps4_pkg_tool_core STATIC
     ${COMMON_FILES}
     ${CORE_FILES}
+    src/pkg_tool/lib.cpp
 )
+target_include_directories(ps4_pkg_tool_core PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(ps4_pkg_tool_core PUBLIC fmt::fmt cryptopp::cryptopp zlibstatic)
+if(MSVC)
+  target_link_libraries(ps4_pkg_tool_core PUBLIC ws2_32)
+endif()
 
-# Link dependencies - use zlib target instead of ZLIB::ZLIB
-target_link_libraries(ps4-pkg-tool PRIVATE 
-    fmt::fmt
-    cryptopp::cryptopp
-    zlibstatic              # Use zlibstatic instead of ZLIB::ZLIB
-)
-
-# On Windows, we need to add additional system libraries
+#---------------------------------------------
+# CLI tool
+#---------------------------------------------
+add_executable(ps4-pkg-tool src/cli/main.cpp)
+target_link_libraries(ps4-pkg-tool PRIVATE ps4_pkg_tool_core)
 if(MSVC)
   target_link_libraries(ps4-pkg-tool PRIVATE ws2_32)
 endif()
-
-# Install target
 install(TARGETS ps4-pkg-tool RUNTIME DESTINATION bin)
+
+#---------------------------------------------
+# Optional minimal Qt GUI frontend
+#---------------------------------------------
+option(BUILD_PKG_QT_GUI "Build minimal Qt GUI frontend for ps4-pkg-tool" ON)
+if(BUILD_PKG_QT_GUI)
+  find_package(Qt6 COMPONENTS Widgets QUIET)
+  if(Qt6Widgets_FOUND)
+    message(STATUS "Building ps4-pkg-tool-gui (Qt6)")
+    set(CMAKE_AUTOMOC ON)
+    set(CMAKE_AUTORCC ON)
+    set(CMAKE_AUTOUIC ON)
+    add_executable(ps4-pkg-tool-gui
+        src/gui/pkg_tool_gui.cpp
+    )
+    target_link_libraries(ps4-pkg-tool-gui PRIVATE ps4_pkg_tool_core Qt6::Widgets)
+    install(TARGETS ps4-pkg-tool-gui RUNTIME DESTINATION bin)
+  else()
+    message(WARNING "Qt6 Widgets not found; ps4-pkg-tool-gui will not be built.")
+  endif()
+endif()
