@@ -1,460 +1,381 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 #include <QApplication>
 #include <QFileDialog>
-#include <QGridLayout>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QGroupBox>
 #include <QLabel>
-#include <QLineEdit>
-#include <QListWidget>
 #include <QMessageBox>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QThread>
 #include <QTimer>
-#include <QFrame>
-#include <QSizePolicy>
-#include <atomic>
-#include <filesystem>
-#include <optional>
-#include <thread>
+#include <QDialog>
+#include <QCheckBox>
+#include <QDir>
+#include <QFileInfo>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QUrl>
+
 #include "pkg_tool/lib.h"
 
-class ExtractWorker : public QObject {
+// Settings Dialog
+class SettingsDialog : public QDialog {
     Q_OBJECT
+
 public:
-    ExtractWorker(QString pkg, QString out) : m_pkg(std::move(pkg)), m_out(std::move(out)) {}
-signals:
-    void progress(uint32_t extracted, uint32_t total);
-    void finished(QString errorMsg);
-public slots:
-    void run() {
-        std::filesystem::path pkg_path = m_pkg.toStdString();
-        std::filesystem::path out_dir = m_out.toStdString();
-        auto err = ExtractPkg(pkg_path, out_dir, {}, [&](uint32_t e, uint32_t t) { emit progress(e, t); });
-        emit finished(err ? QString::fromStdString(*err) : QString());
+    SettingsDialog(QWidget *parent = nullptr) : QDialog(parent) {
+        setWindowTitle("Settings");
+        setModal(true);
+        resize(300, 150);
+        
+        auto *layout = new QVBoxLayout(this);
+        
+        auto *label = new QLabel("Output Directory Behavior:");
+        layout->addWidget(label);
+        
+        useParentDirCheck = new QCheckBox("Extract to parent directory of PKG file");
+        useParentDirCheck->setChecked(true);
+        layout->addWidget(useParentDirCheck);
+        
+        auto *buttonLayout = new QHBoxLayout;
+        auto *okBtn = new QPushButton("OK");
+        auto *cancelBtn = new QPushButton("Cancel");
+        connect(okBtn, &QPushButton::clicked, this, &QDialog::accept);
+        connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+        buttonLayout->addWidget(okBtn);
+        buttonLayout->addWidget(cancelBtn);
+        layout->addLayout(buttonLayout);
     }
+    
+    bool useParentDir() const { return useParentDirCheck->isChecked(); }
+
 private:
-    QString m_pkg;
-    QString m_out;
+    QCheckBox *useParentDirCheck;
 };
 
+// Worker class for extraction
+class ExtractWorker : public QObject {
+    Q_OBJECT
+
+public:
+    ExtractWorker(const QString &pkgPath, const QString &outputPath) 
+        : pkgPath(pkgPath), outputPath(outputPath) {}
+
+signals:
+    void progress(uint32_t extracted, uint32_t total);
+    void finished(QString error);
+
+public slots:
+    void run() {
+        auto result = ExtractPkg(
+            pkgPath.toStdString(), 
+            outputPath.toStdString(),
+            {}, // Extract all files
+            [this](uint32_t e, uint32_t t) { emit progress(e, t); }
+        );
+        
+        emit finished(result ? QString::fromStdString(*result) : "");
+    }
+
+private:
+    QString pkgPath;
+    QString outputPath;
+};
+
+// Main Widget
 class MainWidget : public QWidget {
     Q_OBJECT
+
 public:
     MainWidget() {
-        setWindowTitle("PS4 PKG Tool - Modern GUI");
-        setMinimumSize(900, 650);
+        setWindowTitle("PS4 PKG Tool");
+        setMinimumSize(500, 400);
+        resize(600, 500);
+        setAcceptDrops(true);
         setupUI();
-        applyDarkTheme();
+        applyTheme();
+    }
+
+protected:
+    void dragEnterEvent(QDragEnterEvent *event) override {
+        if (event->mimeData()->hasUrls()) {
+            event->acceptProposedAction();
+        }
+    }
+    
+    void dropEvent(QDropEvent *event) override {
+        const QMimeData *mimeData = event->mimeData();
+        if (mimeData->hasUrls()) {
+            QList<QUrl> urls = mimeData->urls();
+            if (!urls.isEmpty()) {
+                QString filePath = urls.first().toLocalFile();
+                if (filePath.endsWith(".pkg", Qt::CaseInsensitive)) {
+                    startSingleExtraction(filePath);
+                }
+            }
+        }
+    }
+
+private slots:
+    void selectSinglePkg() {
+        QString file = QFileDialog::getOpenFileName(this, "Select PKG File", "", "PKG Files (*.pkg)");
+        if (!file.isEmpty()) {
+            startSingleExtraction(file);
+        }
+    }
+    
+    void selectBatchDir() {
+        QString dir = QFileDialog::getExistingDirectory(this, "Select Directory with PKG Files");
+        if (!dir.isEmpty()) {
+            startBatchExtraction(dir);
+        }
+    }
+    
+    void openSettings() {
+        SettingsDialog dialog(this);
+        if (dialog.exec() == QDialog::Accepted) {
+            useParentDir = dialog.useParentDir();
+        }
     }
 
 private:
     void setupUI() {
         auto *mainLayout = new QVBoxLayout(this);
-        mainLayout->setSpacing(15);
-        mainLayout->setContentsMargins(20, 20, 20, 20);
-
+        mainLayout->setSpacing(30);
+        mainLayout->setContentsMargins(40, 40, 40, 40);
+        
+        // Settings button in top right
+        auto *topLayout = new QHBoxLayout;
+        topLayout->addStretch();
+        auto *settingsBtn = new QPushButton("⚙");
+        settingsBtn->setFixedSize(30, 30);
+        settingsBtn->setObjectName("settingsButton");
+        connect(settingsBtn, &QPushButton::clicked, this, &MainWidget::openSettings);
+        topLayout->addWidget(settingsBtn);
+        mainLayout->addLayout(topLayout);
+        
         // Title
         auto *titleLabel = new QLabel("PS4 PKG Extraction Tool");
         titleLabel->setObjectName("titleLabel");
         titleLabel->setAlignment(Qt::AlignCenter);
         mainLayout->addWidget(titleLabel);
-
-        // Input section
-        auto *inputGroup = new QGroupBox("Input Selection");
-        inputGroup->setObjectName("groupBox");
-        auto *inputLayout = new QVBoxLayout(inputGroup);
         
-        // PKG File selection
-        auto *pkgLayout = new QHBoxLayout;
-        auto *pkgLabel = new QLabel("PKG File:");
-        pkgLabel->setMinimumWidth(120);
-        pkgEdit = new QLineEdit;
-        pkgEdit->setPlaceholderText("Select a .pkg file or choose a directory below");
-        auto *pkgBtn = new QPushButton("Browse...");
-        pkgBtn->setObjectName("primaryButton");
-        connect(pkgBtn, &QPushButton::clicked, this, &MainWidget::pickPkgFile);
+        // Main instruction
+        auto *instructionLabel = new QLabel("Drag & drop a PKG file here to start extraction\nor use the buttons below");
+        instructionLabel->setObjectName("instructionLabel");
+        instructionLabel->setAlignment(Qt::AlignCenter);
+        instructionLabel->setWordWrap(true);
+        mainLayout->addWidget(instructionLabel);
         
-        pkgLayout->addWidget(pkgLabel);
-        pkgLayout->addWidget(pkgEdit);
-        pkgLayout->addWidget(pkgBtn);
-        inputLayout->addLayout(pkgLayout);
-
-        // Directory selection
-        auto *dirLayout = new QHBoxLayout;
-        auto *dirLabel = new QLabel("Directory Mode:");
-        dirLabel->setMinimumWidth(120);
-        dirEdit = new QLineEdit;
-        dirEdit->setPlaceholderText("Select directory containing .pkg files");
-        auto *dirBtn = new QPushButton("Browse Dir...");
-        dirBtn->setObjectName("primaryButton");
-        connect(dirBtn, &QPushButton::clicked, this, &MainWidget::pickPkgDir);
+        mainLayout->addStretch();
         
-        dirLayout->addWidget(dirLabel);
-        dirLayout->addWidget(dirEdit);
-        dirLayout->addWidget(dirBtn);
-        inputLayout->addLayout(dirLayout);
-
-        // Output directory selection
-        auto *outLayout = new QHBoxLayout;
-        auto *outLabel = new QLabel("Output Directory:");
-        outLabel->setMinimumWidth(120);
-        outEdit = new QLineEdit;
-        outEdit->setPlaceholderText("If empty, uses PKG parent or directory itself");
-        auto *outBtn = new QPushButton("Browse Out...");
-        outBtn->setObjectName("primaryButton");
-        connect(outBtn, &QPushButton::clicked, this, &MainWidget::pickOutDir);
+        // Buttons
+        auto *buttonLayout = new QVBoxLayout;
+        buttonLayout->setSpacing(15);
         
-        outLayout->addWidget(outLabel);
-        outLayout->addWidget(outEdit);
-        outLayout->addWidget(outBtn);
-        inputLayout->addLayout(outLayout);
-
-        mainLayout->addWidget(inputGroup);
-
-        // PKG List section
-        auto *listGroup = new QGroupBox("Detected PKG Files");
-        listGroup->setObjectName("groupBox");
-        auto *listLayout = new QVBoxLayout(listGroup);
+        auto *singleBtn = new QPushButton("📁 Select Single PKG File");
+        singleBtn->setObjectName("primaryButton");
+        singleBtn->setMinimumHeight(50);
+        connect(singleBtn, &QPushButton::clicked, this, &MainWidget::selectSinglePkg);
+        buttonLayout->addWidget(singleBtn);
         
-        pkgList = new QListWidget;
-        pkgList->setSelectionMode(QAbstractItemView::ExtendedSelection);
-        pkgList->setMinimumHeight(200);
-        pkgList->setObjectName("pkgList");
-        listLayout->addWidget(pkgList);
-
-        mainLayout->addWidget(listGroup);
-
-        // Metadata section
-        auto *metaGroup = new QGroupBox("Package Information");
-        metaGroup->setObjectName("groupBox");
-        auto *metaLayout = new QVBoxLayout(metaGroup);
-        
-        metaLabel = new QLabel("Select a PKG file to view metadata");
-        metaLabel->setObjectName("metaLabel");
-        metaLabel->setWordWrap(true);
-        metaLayout->addWidget(metaLabel);
-
-        mainLayout->addWidget(metaGroup);
-
-        // Progress section
-        auto *progressGroup = new QGroupBox("Extraction Progress");
-        progressGroup->setObjectName("groupBox");
-        auto *progressLayout = new QVBoxLayout(progressGroup);
-        
-        progressBar = new QProgressBar;
-        progressBar->setMinimum(0);
-        progressBar->setValue(0);
-        progressBar->setObjectName("progressBar");
-        progressBar->setTextVisible(true);
-        progressLayout->addWidget(progressBar);
-
-        mainLayout->addWidget(progressGroup);
-
-        // Action buttons
-        auto *buttonLayout = new QHBoxLayout;
-        buttonLayout->addStretch();
-        
-        auto *extractBtn = new QPushButton("🚀 Extract Selected Packages");
-        extractBtn->setObjectName("extractButton");
-        extractBtn->setMinimumHeight(50);
-        extractBtn->setMinimumWidth(250);
-        connect(extractBtn, &QPushButton::clicked, this, &MainWidget::startExtraction);
-        
-        buttonLayout->addWidget(extractBtn);
-        buttonLayout->addStretch();
+        auto *batchBtn = new QPushButton("📂 Batch Extract from Directory");
+        batchBtn->setObjectName("secondaryButton");
+        batchBtn->setMinimumHeight(50);
+        connect(batchBtn, &QPushButton::clicked, this, &MainWidget::selectBatchDir);
+        buttonLayout->addWidget(batchBtn);
         
         mainLayout->addLayout(buttonLayout);
-
-        connect(pkgList, &QListWidget::currentRowChanged, this, &MainWidget::updateMetadataForCurrent);
+        mainLayout->addStretch();
+        
+        // Progress bar (initially hidden)
+        progressBar = new QProgressBar;
+        progressBar->setObjectName("progressBar");
+        progressBar->setVisible(false);
+        mainLayout->addWidget(progressBar);
     }
-
-    void applyDarkTheme() {
+    
+    void applyTheme() {
         setStyleSheet(R"(
             QWidget {
                 background-color: #2b2b2b;
                 color: #ffffff;
                 font-family: 'Segoe UI', 'Ubuntu', sans-serif;
-                font-size: 11px;
-            }
-            
-            #titleLabel {
-                font-size: 24px;
-                font-weight: bold;
-                color: #4CAF50;
-                margin: 10px 0px 20px 0px;
-                padding: 10px;
-            }
-            
-            QGroupBox {
-                font-weight: bold;
-                border: 2px solid #555555;
-                border-radius: 8px;
-                margin: 5px 0px;
-                padding-top: 15px;
-                background-color: #323232;
-            }
-            
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0px 8px 0px 8px;
-                color: #4CAF50;
                 font-size: 12px;
             }
             
-            QLineEdit {
-                background-color: #404040;
-                border: 2px solid #555555;
-                border-radius: 6px;
-                padding: 8px;
-                font-size: 11px;
-                selection-background-color: #4CAF50;
-            }
-            
-            QLineEdit:focus {
-                border-color: #4CAF50;
-                background-color: #454545;
-            }
-            
-            QPushButton {
-                background-color: #404040;
-                border: 2px solid #555555;
-                border-radius: 6px;
-                padding: 8px 16px;
+            #titleLabel {
+                font-size: 28px;
                 font-weight: bold;
-                min-width: 80px;
+                color: #4CAF50;
+                margin: 20px 0px;
             }
             
-            QPushButton:hover {
-                background-color: #4a4a4a;
-                border-color: #666666;
-            }
-            
-            QPushButton:pressed {
-                background-color: #353535;
+            #instructionLabel {
+                font-size: 16px;
+                color: #cccccc;
+                margin: 20px 0px;
+                line-height: 1.4;
             }
             
             #primaryButton {
-                background-color: #2196F3;
-                border-color: #1976D2;
-                color: white;
-            }
-            
-            #primaryButton:hover {
-                background-color: #1E88E5;
-                border-color: #1565C0;
-            }
-            
-            #primaryButton:pressed {
-                background-color: #1565C0;
-            }
-            
-            #extractButton {
                 background-color: #4CAF50;
-                border-color: #388E3C;
+                border: 2px solid #388E3C;
+                border-radius: 8px;
                 color: white;
                 font-size: 14px;
                 font-weight: bold;
+                padding: 15px;
             }
             
-            #extractButton:hover {
+            #primaryButton:hover {
                 background-color: #45a049;
                 border-color: #2E7D32;
             }
             
-            #extractButton:pressed {
-                background-color: #388E3C;
+            #primaryButton:pressed {
+                background-color: #2E7D32;
             }
             
-            QListWidget {
+            #secondaryButton {
+                background-color: #2196F3;
+                border: 2px solid #1976D2;
+                border-radius: 8px;
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 15px;
+            }
+            
+            #secondaryButton:hover {
+                background-color: #1E88E5;
+                border-color: #1565C0;
+            }
+            
+            #secondaryButton:pressed {
+                background-color: #1565C0;
+            }
+            
+            #settingsButton {
+                background-color: #555555;
+                border: 1px solid #777777;
+                border-radius: 15px;
+                color: white;
+                font-size: 16px;
+            }
+            
+            #settingsButton:hover {
+                background-color: #666666;
+            }
+            
+            #progressBar {
                 background-color: #404040;
-                border: 2px solid #555555;
-                border-radius: 6px;
-                padding: 5px;
-                selection-background-color: #4CAF50;
-                selection-color: white;
-                alternate-background-color: #454545;
-            }
-            
-            QListWidget::item {
-                padding: 8px;
-                border-bottom: 1px solid #555555;
-                border-radius: 3px;
-                margin: 1px;
-            }
-            
-            QListWidget::item:hover {
-                background-color: #4a4a4a;
-            }
-            
-            QListWidget::item:selected {
-                background-color: #4CAF50;
+                border: 1px solid #555555;
+                border-radius: 4px;
+                text-align: center;
                 color: white;
             }
             
-            #metaLabel {
-                background-color: #404040;
-                border: 2px solid #555555;
-                border-radius: 6px;
-                padding: 12px;
-                font-family: 'Consolas', 'Monaco', monospace;
-                font-size: 10px;
-                color: #E0E0E0;
-            }
-            
-            QProgressBar {
-                background-color: #404040;
-                border: 2px solid #555555;
-                border-radius: 6px;
-                height: 25px;
-                text-align: center;
-                font-weight: bold;
-            }
-            
-            QProgressBar::chunk {
-                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #4CAF50, stop:1 #45a049);
-                border-radius: 4px;
-            }
-            
-            QLabel {
-                color: #E0E0E0;
+            #progressBar::chunk {
+                background-color: #4CAF50;
+                border-radius: 3px;
             }
         )");
     }
-
-private slots:
-    void pickPkgFile() {
-        QString file = QFileDialog::getOpenFileName(this, "Select PKG", QString(), "PKG Files (*.pkg)");
-        if (file.isEmpty()) return;
-        pkgEdit->setText(file);
-        pkgList->clear();
-        pkgList->addItem(file);
-        updateMetadataForCurrent();
+    
+    void startSingleExtraction(const QString &pkgPath) {
+        QString outputPath;
+        if (useParentDir) {
+            QFileInfo info(pkgPath);
+            QString baseName = info.completeBaseName(); // Gets filename without .pkg extension
+            outputPath = info.dir().absoluteFilePath(baseName); // parent_dir/CUSA47498
+        } else {
+            QString baseDir = QFileDialog::getExistingDirectory(this, "Select Output Directory");
+            if (baseDir.isEmpty()) return;
+            QFileInfo info(pkgPath);
+            QString baseName = info.completeBaseName();
+            outputPath = QDir(baseDir).absoluteFilePath(baseName);
+        }
+        
+        extractPkg(pkgPath, outputPath);
     }
-    void pickPkgDir() {
-        QString dir = QFileDialog::getExistingDirectory(this, "Select Directory with PKG files");
-        if (dir.isEmpty()) return;
-        dirEdit->setText(dir);
-        pkgList->clear();
-        for (auto &p : ListPkgFiles(dir.toStdString(), false)) {
-            pkgList->addItem(QString::fromStdString(p.string()));
+    
+    void startBatchExtraction(const QString &dirPath) {
+        QDir dir(dirPath);
+        QStringList pkgFiles = dir.entryList(QStringList() << "*.pkg", QDir::Files);
+        
+        if (pkgFiles.isEmpty()) {
+            QMessageBox::warning(this, "No PKG Files", "No PKG files found in the selected directory.");
+            return;
         }
-        if (pkgList->count() > 0) {
-            pkgList->setCurrentRow(0);
-            updateMetadataForCurrent();
+        
+        QString baseOutputPath;
+        if (!useParentDir) {
+            baseOutputPath = QFileDialog::getExistingDirectory(this, "Select Output Directory");
+            if (baseOutputPath.isEmpty()) return;
+        }
+        
+        // Extract each PKG file
+        for (const QString &pkgFile : pkgFiles) {
+            QString fullPath = dir.absoluteFilePath(pkgFile);
+            QFileInfo info(fullPath);
+            QString baseName = info.completeBaseName(); // PKG name without extension
+            
+            QString pkgOutputPath;
+            if (useParentDir) {
+                pkgOutputPath = dir.absoluteFilePath(baseName); // same dir + PKG name
+            } else {
+                pkgOutputPath = QDir(baseOutputPath).absoluteFilePath(baseName); // chosen dir + PKG name
+            }
+            
+            extractPkg(fullPath, pkgOutputPath);
         }
     }
-    void pickOutDir() {
-        QString dir = QFileDialog::getExistingDirectory(this, "Select Output Directory");
-        if (dir.isEmpty()) return;
-        outEdit->setText(dir);
-    }
-    void updateMetadataForCurrent() {
-        auto *item = pkgList->currentItem();
-        if (!item) { 
-            metaLabel->setText("Select a PKG file to view metadata"); 
-            return; 
-        }
-        PkgMetadata meta; 
-        auto err = ReadPkgMetadata(item->text().toStdString(), meta);
-        if (err) { 
-            metaLabel->setText("❌ Metadata error: " + QString::fromStdString(*err)); 
-            return; 
-        }
-        metaLabel->setText(QString("📦 Title ID: %1\n"
-                                   "📏 Size: %2 bytes (%3 MB)\n"
-                                   "🏷️ Flags: %4\n"
-                                   "📁 Files: %5")
-                               .arg(QString::fromStdString(meta.title_id))
-                               .arg(meta.pkg_size)
-                               .arg(QString::number(meta.pkg_size / (1024.0 * 1024.0), 'f', 1))
-                               .arg(meta.flags)
-                               .arg(meta.file_count));
-    }
-    void startExtraction() {
-        QStringList targets;
-        auto selected = pkgList->selectedItems();
-        if (!selected.isEmpty()) {
-            for (auto *i : selected) targets << i->text();
-        } else if (pkgList->count() == 1) {
-            targets << pkgList->item(0)->text();
-        } else if (!pkgEdit->text().isEmpty()) {
-            targets << pkgEdit->text();
-        }
-        if (targets.isEmpty()) { 
-            QMessageBox::warning(this, "No PKG Selected", "Please select at least one PKG file to extract."); 
-            return; 
-        }
-        QString outBase = outEdit->text();
+    
+    void extractPkg(const QString &pkgPath, const QString &outputPath) {
+        progressBar->setVisible(true);
         progressBar->setValue(0);
-        progressBar->setFormat("Preparing extraction...");
-        // Sequential extraction for simplicity
-        extractNext(targets, 0, outBase);
-    }
-    void extractNext(const QStringList &targets, int index, const QString &outBase) {
-        if (index >= targets.size()) { 
-            progressBar->setFormat("✅ All extractions complete!");
-            QMessageBox::information(this, "Extraction Complete", "All PKG files have been successfully extracted!"); 
-            return; 
-        }
-        QString pkgPath = targets[index];
-        // Determine output directory
-        QString outDir = outBase;
-        if (outDir.isEmpty()) {
-            std::filesystem::path p = pkgPath.toStdString();
-            outDir = QString::fromStdString(p.parent_path().string());
-        }
-        // Read metadata to build subdir
-        PkgMetadata meta; ReadPkgMetadata(pkgPath.toStdString(), meta);
-        std::filesystem::path sub = std::filesystem::path(outDir.toStdString()) / meta.title_id;
-        QString finalOut = QString::fromStdString(sub.string());
-
-        progressBar->setFormat(QString("Extracting %1 (%2/%3)...")
-                              .arg(QString::fromStdString(meta.title_id))
-                              .arg(index + 1)
-                              .arg(targets.size()));
-
-        // Threaded extraction
-        auto *worker = new ExtractWorker(pkgPath, finalOut);
-        auto *thread = new QThread; worker->moveToThread(thread);
+        progressBar->setFormat("Extracting...");
+        
+        auto *thread = new QThread;
+        auto *worker = new ExtractWorker(pkgPath, outputPath);
+        worker->moveToThread(thread);
+        
         connect(thread, &QThread::started, worker, &ExtractWorker::run);
         connect(worker, &ExtractWorker::progress, this, [this](uint32_t e, uint32_t t){
             progressBar->setMaximum(static_cast<int>(t));
             progressBar->setValue(static_cast<int>(e));
         });
-        connect(worker, &ExtractWorker::finished, this, [=](QString err){
-            thread->quit(); thread->wait(); worker->deleteLater(); thread->deleteLater();
-            if (!err.isEmpty()) {
-                progressBar->setFormat("❌ Extraction failed!");
-                QMessageBox::critical(this, "Extraction Error", 
-                    QString("Failed to extract package:\n\n%1").arg(err));
+        connect(worker, &ExtractWorker::finished, this, [this, thread, worker](QString err){
+            if (err.isEmpty()) {
+                progressBar->setFormat("✅ Extraction Complete!");
+                QTimer::singleShot(2000, [this]() { progressBar->setVisible(false); });
+            } else {
+                progressBar->setVisible(false);
+                QMessageBox::critical(this, "Extraction Error", "Failed to extract PKG:\n" + err);
             }
-            progressBar->setValue(0);
-            extractNext(targets, index+1, outBase);
+            thread->quit();
+            thread->wait();
+            thread->deleteLater();
+            worker->deleteLater();
         });
+        
         thread->start();
     }
-private:
-    QLineEdit *pkgEdit{}; QLineEdit *dirEdit{}; QLineEdit *outEdit{};
-    QListWidget *pkgList{}; QLabel *metaLabel{}; QProgressBar *progressBar{};
-};
 
-#include "pkg_tool_gui.moc"
+private:
+    QProgressBar *progressBar;
+    bool useParentDir = true;
+};
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     
-    // Set application properties
-    app.setApplicationName("PS4 PKG Tool");
-    app.setApplicationVersion("1.0");
-    app.setOrganizationName("PS4 PKG Tools");
+    MainWidget window;
+    window.show();
     
-    MainWidget w; 
-    w.resize(900, 650); 
-    w.show();
     return app.exec();
 }
+
+#include "pkg_tool_gui.moc"
