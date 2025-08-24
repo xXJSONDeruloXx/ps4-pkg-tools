@@ -2,6 +2,8 @@
 
 A lightweight command-line utility and GUI application for extracting and decrypting PlayStation 4 PKG files.
 
+![gui screenshot](image.png)
+
 ## Overview
 
 ps4-pkg-tool is both a CLI (Command Line Interface) and GUI utility that provides the ability to:
