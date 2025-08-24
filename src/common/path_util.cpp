@@ -6,6 +6,7 @@
 #include "common/logging/log.h"
 #include "common/path_util.h"
 #include "common/scope_exit.h"
+#include <cstring>
 
 #ifdef __APPLE__
 #include <CoreFoundation/CFBundle.h>
@@ -159,13 +160,13 @@ static auto UserPaths = [] {
 
 bool ValidatePath(const fs::path& path) {
     if (path.empty()) {
-        LOG_ERROR(Common_Filesystem, "Input path is empty, path={}", PathToUTF8String(path));
+    LOG_ERROR(Common_Filesystem, "Input path is empty");
         return false;
     }
 
 #ifdef _WIN32
     if (path.u16string().size() >= MAX_PATH) {
-        LOG_ERROR(Common_Filesystem, "Input path is too long, path={}", PathToUTF8String(path));
+    LOG_ERROR(Common_Filesystem, "Input path is too long");
         return false;
     }
 #else
@@ -193,8 +194,7 @@ std::string GetUserPathString(PathType shad_path) {
 
 void SetUserPath(PathType shad_path, const fs::path& new_path) {
     if (!std::filesystem::is_directory(new_path)) {
-        LOG_ERROR(Common_Filesystem, "Filesystem object at new_path={} is not a directory",
-                  PathToUTF8String(new_path));
+    LOG_ERROR(Common_Filesystem, "New path is not a directory");
         return;
     }
 

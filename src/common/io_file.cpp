@@ -131,8 +131,7 @@ namespace {
     case SeekOrigin::End:
         return SEEK_END;
     default:
-        LOG_ERROR(Common_Filesystem, "Unsupported origin {}, defaulting to SEEK_SET",
-                  static_cast<u32>(origin));
+    LOG_ERROR(Common_Filesystem, "Unsupported origin, defaulting to SEEK_SET");
         return SEEK_SET;
     }
 }
@@ -196,8 +195,7 @@ int IOFile::Open(const fs::path& path, FileAccessMode mode, FileType type, FileS
 
     if (!IsOpen()) {
         const auto ec = std::error_code{result, std::generic_category()};
-        LOG_ERROR(Common_Filesystem, "Failed to open the file at path={}, error_message={}",
-                  PathToUTF8String(file_path), ec.message());
+    LOG_ERROR(Common_Filesystem, "Failed to open file");
     }
 
     return result;
@@ -214,8 +212,7 @@ void IOFile::Close() {
 
     if (!close_result) {
         const auto ec = std::error_code{errno, std::generic_category()};
-        LOG_ERROR(Common_Filesystem, "Failed to close the file at path={}, ec_message={}",
-                  PathToUTF8String(file_path), ec.message());
+    LOG_ERROR(Common_Filesystem, "Failed to close file");
     }
 
     file = nullptr;
@@ -247,8 +244,7 @@ void IOFile::Unlink() {
 #else
     if (unlink(file_path.c_str()) != 0) {
         const auto ec = std::error_code{errno, std::generic_category()};
-        LOG_ERROR(Common_Filesystem, "Failed to unlink the file at path={}, ec_message={}",
-                  PathToUTF8String(file_path), ec.message());
+    LOG_ERROR(Common_Filesystem, "Failed to unlink file");
     }
 #endif
 }
@@ -303,8 +299,7 @@ bool IOFile::Flush() const {
 
     if (!flush_result) {
         const auto ec = std::error_code{errno, std::generic_category()};
-        LOG_ERROR(Common_Filesystem, "Failed to flush the file at path={}, ec_message={}",
-                  PathToUTF8String(file_path), ec.message());
+    LOG_ERROR(Common_Filesystem, "Failed to flush file");
     }
 
     return flush_result;
@@ -325,8 +320,7 @@ bool IOFile::Commit() const {
 
     if (!commit_result) {
         const auto ec = std::error_code{errno, std::generic_category()};
-        LOG_ERROR(Common_Filesystem, "Failed to commit the file at path={}, ec_message={}",
-                  PathToUTF8String(file_path), ec.message());
+    LOG_ERROR(Common_Filesystem, "Failed to commit file");
     }
 
     return commit_result;
@@ -347,8 +341,7 @@ bool IOFile::SetSize(u64 size) const {
 
     if (!set_size_result) {
         const auto ec = std::error_code{errno, std::generic_category()};
-        LOG_ERROR(Common_Filesystem, "Failed to resize the file at path={}, size={}, ec_message={}",
-                  PathToUTF8String(file_path), size, ec.message());
+    LOG_ERROR(Common_Filesystem, "Failed to resize file");
     }
 
     return set_size_result;
@@ -367,8 +360,7 @@ u64 IOFile::GetSize() const {
     const auto file_size = fs::file_size(file_path, ec);
 
     if (ec) {
-        LOG_ERROR(Common_Filesystem, "Failed to retrieve the file size of path={}, ec_message={}",
-                  PathToUTF8String(file_path), ec.message());
+    LOG_ERROR(Common_Filesystem, "Failed to get file size");
         return 0;
     }
 
@@ -386,9 +378,7 @@ bool IOFile::Seek(s64 offset, SeekOrigin origin) const {
 
     if (!seek_result) {
         const auto ec = std::error_code{errno, std::generic_category()};
-        LOG_ERROR(Common_Filesystem,
-                  "Failed to seek the file at path={}, offset={}, origin={}, ec_message={}",
-                  PathToUTF8String(file_path), offset, static_cast<u32>(origin), ec.message());
+    LOG_ERROR(Common_Filesystem, "Failed to seek file");
     }
 
     return seek_result;

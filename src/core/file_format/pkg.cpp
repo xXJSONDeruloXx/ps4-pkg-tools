@@ -3,7 +3,6 @@
 
 #include "zlib/zlib.h"
 #include "common/io_file.h"
-#include "common/logging/formatter.h"
 #include "core/file_format/pkg.h"
 #include "core/file_format/pkg_type.h"
 
@@ -349,8 +348,10 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
                     auto parent_path = extract_path.parent_path();
                     auto title_id = GetTitleID();
 
-                    if (parent_path.filename() != title_id &&
-                        !fmt::UTF(extract_path.u8string()).data.ends_with("-patch")) {
+            const auto extract_utf8 = extract_path.u8string();
+            const bool has_patch_suffix = extract_utf8.size() >= 6 &&
+                              extract_utf8.compare(extract_utf8.size()-6, 6, u8"-patch") == 0;
+            if (parent_path.filename() != title_id && !has_patch_suffix) {
                         extractPaths[ndinode_counter] = parent_path / title_id;
                     } else {
                         // DLCs path has different structure
