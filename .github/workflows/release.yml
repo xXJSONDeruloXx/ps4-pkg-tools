@@ -2,9 +2,6 @@ name: Release
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - 'v*.*.*'
 
 permissions:
   contents: write
@@ -58,6 +55,25 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository (for tagging)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate unique timestamp tag
+        id: gen_tag
+        run: |
+          DATE=$(date -u +'%Y%m%d-%H%M%S')
+            # Short SHA of the current commit (the one that triggered the workflow dispatch)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAG="v${DATE}-${SHORT_SHA}"
+          echo "Generated tag: $TAG"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Automated release $TAG"
+          git push origin "$TAG"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -79,3 +95,5 @@ jobs:
             artifacts/SHA256SUMS.txt
           draft: false
           prerelease: false
+          tag_name: ${{ steps.gen_tag.outputs.tag }}
+          name: Release ${{ steps.gen_tag.outputs.tag }}
