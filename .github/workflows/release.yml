@@ -64,26 +64,34 @@ jobs:
         id: gen_tag
         run: |
           DATE=$(date -u +'%Y%m%d-%H%M%S')
-            # Short SHA of the current commit (the one that triggered the workflow dispatch)
+          # Capture previous tag (if any) before creating the new one
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           SHORT_SHA=$(git rev-parse --short HEAD)
           TAG="v${DATE}-${SHORT_SHA}"
-          echo "Generated tag: $TAG"
+          echo "Generated tag: $TAG (previous tag: ${PREV_TAG:-none})"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Automated release $TAG"
           git push origin "$TAG"
+
+          # Generate release notes body
+          if [ -n "$PREV_TAG" ]; then
+            echo "Changes since $PREV_TAG:" > RELEASE_BODY.md
+            git log --pretty=format:'- %s (%h)' ${PREV_TAG}..HEAD >> RELEASE_BODY.md
+          else
+            echo "Initial automated release." > RELEASE_BODY.md
+            git log --pretty=format:'- %s (%h)' >> RELEASE_BODY.md || true
+          fi
+          echo "" >> RELEASE_BODY.md
+          echo "Full commit range: ${PREV_TAG:-<none>}..$TAG" >> RELEASE_BODY.md
+
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "body_path=RELEASE_BODY.md" >> "$GITHUB_OUTPUT"
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-
-      - name: Generate checksums
-        run: |
-          cd artifacts
-          sha256sum */*.tar.gz > SHA256SUMS.txt
-          cat SHA256SUMS.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -92,8 +100,8 @@ jobs:
         with:
           files: |
             artifacts/*/*.tar.gz
-            artifacts/SHA256SUMS.txt
           draft: false
           prerelease: false
           tag_name: ${{ steps.gen_tag.outputs.tag }}
           name: Release ${{ steps.gen_tag.outputs.tag }}
+          body_path: ${{ steps.gen_tag.outputs.body_path }}
