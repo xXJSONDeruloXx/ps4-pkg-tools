@@ -1,20 +1,41 @@
 # PS4 PKG Tool
 
-A lightweight command-line utility for extracting and decrypting PlayStation 4 PKG files.
+A lightweight command-line utility and GUI application for extracting and decrypting PlayStation 4 PKG files.
 
 ## Overview
 
-ps4-pkg-tool is a CLI (Command Line Interface) utility that provides the ability to:
+ps4-pkg-tool is both a CLI (Command Line Interface) and GUI utility that provides the ability to:
 
 - Extract PKG files (.pkg) used by the PlayStation 4
 - Decrypt the PKG content (game files, sce_sys directory, etc.)
 - Reconstruct the complete file hierarchy
 - Process PFS (PlayStation File System) images within the PKG
 - Batch process multiple PKG files with a single command
+- User-friendly drag & drop GUI interface with toggle-based output directory control
 
-This tool uses the core PKG extraction and decryption functionality from the shadPS4 emulator project, stripped down into a simple command-line utility.
+This tool uses the core PKG extraction and decryption functionality from the shadPS4 emulator project, stripped down into simple command-line and GUI utilities.
 
 ## Usage
+
+### GUI Application
+
+The GUI provides an intuitive interface for PKG extraction:
+
+```bash
+# Launch the GUI
+ps4-pkg-tool-gui
+```
+
+**GUI Features:**
+- **Drag & Drop**: Simply drag PKG files onto the window to start extraction
+- **Output Directory Toggle**: Easily control where files are extracted
+  - Toggle ON (default): Extract to same folder as PKG file
+  - Toggle OFF: Choose custom output directory
+- **Single File Mode**: Select individual PKG files for extraction
+- **Batch Mode**: Process entire directories of PKG files
+- **Progress Tracking**: Real-time extraction progress display
+
+### Command Line Interface
 
 ```bash
 # For a single PKG file
@@ -58,6 +79,39 @@ ps4-pkg-tool --dir ~/PS4Games
 
 ### Build Instructions
 
+#### Quick Start with Makefile
+
+The easiest way to build the project is using the provided Makefile:
+
+```bash
+# Clone repository with submodules
+git clone --recursive https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
+cd ps4-pkg-tools
+
+# Build everything (CLI + GUI)
+make
+
+# Or build specific components
+make cli      # Build only command-line tool
+make gui      # Build only GUI application
+make help     # Show all available options
+```
+
+**Makefile Commands:**
+- `make` or `make all` - Setup and build everything
+- `make setup` - Initialize submodules and configure CMake
+- `make build` - Build both CLI and GUI tools
+- `make cli` - Build only the command-line tool
+- `make gui` - Build only the GUI tool
+- `make clean` - Clean build artifacts
+- `make rebuild` - Quick rebuild
+- `make reset` - Reset everything and rebuild from scratch
+- `make run-gui` - Build and run the GUI
+- `make status` - Show current build status
+- `make package` - Create distribution package
+
+#### Manual CMake Build
+
 #### GitHub Actions Automated Builds
 
 This repository uses GitHub Actions to automatically build the tool for macOS and Linux environments. You can:
@@ -72,6 +126,18 @@ The available workflows are:
 
 #### macOS
 
+**Quick Method (Recommended):**
+```bash
+# Install dependencies
+brew install cmake qt@6  # Qt6 optional for GUI
+
+# Clone and build
+git clone --recursive https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
+cd ps4-pkg-tools
+make
+```
+
+**Manual Method:**
 ```bash
 # Install build dependencies with Homebrew
 brew install cmake
@@ -105,10 +171,22 @@ cmake --install . --prefix ~/.local
 
 #### Linux
 
-There are two ways to build on Linux: directly or using Docker.
+**Quick Method (Recommended):**
+```bash
+# Install dependencies
+sudo apt install cmake build-essential qt6-base-dev  # Qt6 optional for GUI
+
+# Clone and build
+git clone --recursive https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
+cd ps4-pkg-tools
+make
+```
+
+There are also additional ways to build on Linux: directly or using Docker.
 
 ##### Direct Build (on Linux systems)
 
+**Manual Method:**
 ```bash
 # Install build dependencies
 sudo apt install cmake build-essential git
@@ -174,6 +252,28 @@ cmake -DBUILD_PKG_QT_GUI=OFF ..
 cmake -DCMAKE_INSTALL_PREFIX=/usr/local ..
 ```
 
+**Useful Make Commands:**
+```bash
+# Check if Qt6 is available for GUI building
+make check-qt
+
+# Build with debug symbols
+make debug
+
+# Build optimized release version
+make release
+
+# Clean and rebuild
+make rebuild
+
+# Show project status
+make status
+
+# Run the applications
+make run-gui
+make run-cli
+```
+
 **Useful CMake Commands:**
 ```bash
 # Clean build directory
@@ -198,12 +298,17 @@ The repository includes convenience scripts for automated builds:
 git clone --recursive https://github.com/xXJSONDeruloXx/ps4-pkg-tools.git
 cd ps4-pkg-tools
 
-# Option 1: Build Linux binary using Docker (cross-platform)
+# Option 1: Use the Makefile (recommended)
+make
+
+# Option 2: Build Linux binary using Docker (cross-platform)
 ./build-linux.sh
 
-# Option 2: Build both macOS and Linux binaries (macOS only)
+# Option 3: Build both macOS and Linux binaries (macOS only)
 ./build.sh
 ```
+
+**Makefile**: Provides convenient targets for common build tasks and automatically detects system capabilities.
 
 **build-linux.sh**: Uses Docker to create a Linux binary on any platform that supports Docker. The resulting binary will be in `linux-build/ps4-pkg-tool`.
 
@@ -239,6 +344,9 @@ cd ps4-pkg-tools
 
 4. **Qt6 not found** (affects GUI build only):
    ```bash
+   # Check Qt6 availability
+   make check-qt
+   
    # Disable GUI build
    cmake -DBUILD_PKG_QT_GUI=OFF ..
    

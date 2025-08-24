@@ -8,50 +8,83 @@
 #include <QPushButton>
 #include <QThread>
 #include <QTimer>
-#include <QDialog>
-#include <QCheckBox>
 #include <QDir>
 #include <QFileInfo>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
 #include <QUrl>
+#include <QPainter>
+#include <QPropertyAnimation>
+#include <QEasingCurve>
 
 #include "pkg_tool/lib.h"
 
-// Settings Dialog
-class SettingsDialog : public QDialog {
+// Custom Toggle Switch Widget
+class ToggleSwitch : public QWidget {
     Q_OBJECT
 
 public:
-    SettingsDialog(QWidget *parent = nullptr) : QDialog(parent) {
-        setWindowTitle("Settings");
-        setModal(true);
-        resize(300, 150);
+    ToggleSwitch(QWidget *parent = nullptr) : QWidget(parent), m_checked(true), m_position(1.0) {
+        setFixedSize(60, 30);
+        setCursor(Qt::PointingHandCursor);
         
-        auto *layout = new QVBoxLayout(this);
-        
-        auto *label = new QLabel("Output Directory Behavior:");
-        layout->addWidget(label);
-        
-        useParentDirCheck = new QCheckBox("Extract to parent directory of PKG file");
-        useParentDirCheck->setChecked(true);
-        layout->addWidget(useParentDirCheck);
-        
-        auto *buttonLayout = new QHBoxLayout;
-        auto *okBtn = new QPushButton("OK");
-        auto *cancelBtn = new QPushButton("Cancel");
-        connect(okBtn, &QPushButton::clicked, this, &QDialog::accept);
-        connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
-        buttonLayout->addWidget(okBtn);
-        buttonLayout->addWidget(cancelBtn);
-        layout->addLayout(buttonLayout);
+        m_animation = new QPropertyAnimation(this, "position", this);
+        m_animation->setDuration(200);
+        m_animation->setEasingCurve(QEasingCurve::InOutCubic);
     }
     
-    bool useParentDir() const { return useParentDirCheck->isChecked(); }
+    bool isChecked() const { return m_checked; }
+    
+    void setChecked(bool checked) {
+        if (m_checked != checked) {
+            m_checked = checked;
+            m_animation->setStartValue(m_position);
+            m_animation->setEndValue(m_checked ? 1.0 : 0.0);
+            m_animation->start();
+            emit toggled(m_checked);
+        }
+    }
+    
+    Q_PROPERTY(qreal position READ position WRITE setPosition)
+    
+    qreal position() const { return m_position; }
+    void setPosition(qreal pos) { m_position = pos; update(); }
+
+signals:
+    void toggled(bool checked);
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        
+        // Background track
+        QRect trackRect = rect().adjusted(2, 2, -2, -2);
+        QColor trackColor = m_checked ? QColor(76, 175, 80) : QColor(100, 100, 100);
+        p.setBrush(trackColor);
+        p.setPen(Qt::NoPen);
+        p.drawRoundedRect(trackRect, 13, 13);
+        
+        // Thumb
+        int thumbSize = 22;
+        int thumbY = (height() - thumbSize) / 2;
+        int thumbX = 4 + (int)((width() - thumbSize - 8) * m_position);
+        
+        QRect thumbRect(thumbX, thumbY, thumbSize, thumbSize);
+        p.setBrush(QColor(255, 255, 255));
+        p.setPen(QPen(QColor(200, 200, 200), 1));
+        p.drawEllipse(thumbRect);
+    }
+    
+    void mousePressEvent(QMouseEvent *) override {
+        setChecked(!m_checked);
+    }
 
 private:
-    QCheckBox *useParentDirCheck;
+    bool m_checked;
+    qreal m_position;
+    QPropertyAnimation *m_animation;
 };
 
 // Worker class for extraction
@@ -131,29 +164,12 @@ private slots:
             startBatchExtraction(dir);
         }
     }
-    
-    void openSettings() {
-        SettingsDialog dialog(this);
-        if (dialog.exec() == QDialog::Accepted) {
-            useParentDir = dialog.useParentDir();
-        }
-    }
 
 private:
     void setupUI() {
         auto *mainLayout = new QVBoxLayout(this);
         mainLayout->setSpacing(30);
         mainLayout->setContentsMargins(40, 40, 40, 40);
-        
-        // Settings button in top right
-        auto *topLayout = new QHBoxLayout;
-        topLayout->addStretch();
-        auto *settingsBtn = new QPushButton("⚙");
-        settingsBtn->setFixedSize(30, 30);
-        settingsBtn->setObjectName("settingsButton");
-        connect(settingsBtn, &QPushButton::clicked, this, &MainWidget::openSettings);
-        topLayout->addWidget(settingsBtn);
-        mainLayout->addLayout(topLayout);
         
         // Title
         auto *titleLabel = new QLabel("PS4 PKG Extraction Tool");
@@ -189,6 +205,32 @@ private:
         mainLayout->addLayout(buttonLayout);
         mainLayout->addStretch();
         
+        // Output Directory Setting (moved to bottom)
+        auto *settingLayout = new QHBoxLayout;
+        settingLayout->setSpacing(15);
+        settingLayout->setAlignment(Qt::AlignCenter);
+        
+        auto *settingLabel = new QLabel("Output Directory:");
+        settingLabel->setObjectName("settingLabel");
+        settingLayout->addWidget(settingLabel);
+        
+        outputToggle = new ToggleSwitch();
+        outputToggle->setChecked(true);
+        settingLayout->addWidget(outputToggle);
+        
+        auto *toggleLabel = new QLabel("Extract to same folder as PKG file");
+        toggleLabel->setObjectName("toggleLabel");
+        settingLayout->addWidget(toggleLabel);
+        
+        settingLayout->addStretch();
+        mainLayout->addLayout(settingLayout);
+        
+        // Helper text for the setting
+        auto *helperLabel = new QLabel("When unchecked, you'll be asked to choose an output directory");
+        helperLabel->setObjectName("helperLabel");
+        helperLabel->setAlignment(Qt::AlignCenter);
+        mainLayout->addWidget(helperLabel);
+        
         // Progress bar (initially hidden)
         progressBar = new QProgressBar;
         progressBar->setObjectName("progressBar");
@@ -217,6 +259,24 @@ private:
                 color: #cccccc;
                 margin: 20px 0px;
                 line-height: 1.4;
+            }
+            
+            #settingLabel {
+                font-size: 14px;
+                font-weight: bold;
+                color: #ffffff;
+            }
+            
+            #toggleLabel {
+                font-size: 14px;
+                color: #ffffff;
+            }
+            
+            #helperLabel {
+                font-size: 12px;
+                color: #888888;
+                font-style: italic;
+                margin-bottom: 10px;
             }
             
             #primaryButton {
@@ -257,18 +317,6 @@ private:
                 background-color: #1565C0;
             }
             
-            #settingsButton {
-                background-color: #555555;
-                border: 1px solid #777777;
-                border-radius: 15px;
-                color: white;
-                font-size: 16px;
-            }
-            
-            #settingsButton:hover {
-                background-color: #666666;
-            }
-            
             #progressBar {
                 background-color: #404040;
                 border: 1px solid #555555;
@@ -286,7 +334,7 @@ private:
     
     void startSingleExtraction(const QString &pkgPath) {
         QString outputPath;
-        if (useParentDir) {
+        if (outputToggle->isChecked()) {
             QFileInfo info(pkgPath);
             QString baseName = info.completeBaseName(); // Gets filename without .pkg extension
             outputPath = info.dir().absoluteFilePath(baseName); // parent_dir/CUSA47498
@@ -311,7 +359,7 @@ private:
         }
         
         QString baseOutputPath;
-        if (!useParentDir) {
+        if (!outputToggle->isChecked()) {
             baseOutputPath = QFileDialog::getExistingDirectory(this, "Select Output Directory");
             if (baseOutputPath.isEmpty()) return;
         }
@@ -323,7 +371,7 @@ private:
             QString baseName = info.completeBaseName(); // PKG name without extension
             
             QString pkgOutputPath;
-            if (useParentDir) {
+            if (outputToggle->isChecked()) {
                 pkgOutputPath = dir.absoluteFilePath(baseName); // same dir + PKG name
             } else {
                 pkgOutputPath = QDir(baseOutputPath).absoluteFilePath(baseName); // chosen dir + PKG name
@@ -366,7 +414,7 @@ private:
 
 private:
     QProgressBar *progressBar;
-    bool useParentDir = true;
+    ToggleSwitch *outputToggle;
 };
 
 int main(int argc, char *argv[]) {
