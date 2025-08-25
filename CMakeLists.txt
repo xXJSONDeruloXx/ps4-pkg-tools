@@ -22,26 +22,24 @@ if(MSVC)
   add_definitions(-DNOMINMAX -D_CRT_SECURE_NO_WARNINGS)
 endif()
 
-# Use zlib from submodule
+## --- Minimal dependency setup (CLI + optional GUI only) ---
+# Use zlib from submodule (needed for PFSC decompression)
 set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "Build zlib examples" FORCE)
 set(ZLIB_BUILD_TESTS OFF CACHE BOOL "Build zlib tests" FORCE)
 add_subdirectory(${CMAKE_SOURCE_DIR}/externals/zlib EXCLUDE_FROM_ALL)
 
-# Configure cryptopp from submodule
+# Configure cryptopp from submodule (RSA/AES/HMAC)
 set(CRYPTOPP_BUILD_TESTING OFF CACHE BOOL "Build cryptopp tests")
-set(CRYPTOPP_BUILD_DOCUMENTATION OFF CACHE BOOL "Build cryptopp documentation") 
+set(CRYPTOPP_BUILD_DOCUMENTATION OFF CACHE BOOL "Build cryptopp documentation")
 set(CRYPTOPP_INSTALL OFF CACHE BOOL "Install cryptopp library")
 set(CRYPTOPP_SOURCES ${CMAKE_SOURCE_DIR}/externals/cryptopp)
 add_subdirectory(${CMAKE_SOURCE_DIR}/externals/cryptopp-cmake EXCLUDE_FROM_ALL)
 
-# Include paths for external libraries
+# Only include required source include paths (drop tracy, toml11, fmt, etc.)
 include_directories(
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/externals/toml11/include
-    ${CMAKE_SOURCE_DIR}/externals/tracy/public
-    ${CMAKE_SOURCE_DIR}/externals/fmt/include
-    ${CMAKE_SOURCE_DIR}/externals                # Add this line to include cryptopp directly
-    ${CMAKE_SOURCE_DIR}/externals/zlib           # Include zlib headers
+  ${CMAKE_SOURCE_DIR}/src
+  ${CMAKE_SOURCE_DIR}/externals                # cryptopp headers
+  ${CMAKE_SOURCE_DIR}/externals/zlib           # zlib headers
 )
 
 # On Windows, include our compatibility header directory
@@ -49,8 +47,7 @@ if(MSVC)
   include_directories(BEFORE "${CMAKE_SOURCE_DIR}/.github")
 endif()
 
-# Build fmt from source
-add_subdirectory(${CMAKE_SOURCE_DIR}/externals/fmt EXCLUDE_FROM_ALL)
+# fmt removed – using only standard library facilities now.
 
 # Configure required version info for scm_rev.cpp
 set(EMULATOR_VERSION_MAJOR "0")
@@ -68,25 +65,15 @@ configure_file(
 
 # Add common source files needed for the tool
 set(COMMON_FILES
-    src/common/io_file.cpp
-    src/common/error.cpp
-    src/common/path_util.cpp
-    src/common/string_util.cpp
-    src/common/config.cpp
-    src/common/assert.cpp
-    src/common/thread.cpp
-    src/common/logging/backend.cpp
-    src/common/logging/filter.cpp
-    src/common/logging/text_formatter.cpp
-    ${CMAKE_CURRENT_BINARY_DIR}/src/common/scm_rev.cpp
+  src/common/io_file.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/src/common/scm_rev.cpp
 )
 
 # Add core sources needed for extraction
 set(CORE_FILES
-    src/core/crypto/crypto.cpp
-    src/core/file_format/pkg.cpp
-    src/core/file_format/pkg_type.cpp
-    src/core/file_format/trp.cpp
+  src/core/crypto/crypto.cpp
+  src/core/file_format/pkg.cpp
+  src/core/file_format/pkg_type.cpp
 )
 
 #---------------------------------------------
@@ -98,7 +85,7 @@ add_library(ps4_pkg_tool_core STATIC
     src/pkg_tool/lib.cpp
 )
 target_include_directories(ps4_pkg_tool_core PUBLIC ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(ps4_pkg_tool_core PUBLIC fmt::fmt cryptopp::cryptopp zlibstatic)
+target_link_libraries(ps4_pkg_tool_core PUBLIC cryptopp::cryptopp zlibstatic)
 if(MSVC)
   target_link_libraries(ps4_pkg_tool_core PUBLIC ws2_32)
 endif()

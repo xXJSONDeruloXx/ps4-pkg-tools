@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "common/logging/log.h"
+// Logging removed in slim build.
 
 // Sometimes we want to try to continue even after hitting an assert.
 // However touching this file yields a global recompilation as this header is included almost
@@ -22,7 +22,6 @@ void assert_fail_impl();
 #define ASSERT(_a_)                                                                                \
     ([&]() SHAD_NO_INLINE {                                                                        \
         if (!(_a_)) [[unlikely]] {                                                                 \
-            LOG_CRITICAL(Debug, "Assertion Failed!");                                              \
             assert_fail_impl();                                                                    \
         }                                                                                          \
     }())
@@ -30,21 +29,18 @@ void assert_fail_impl();
 #define ASSERT_MSG(_a_, ...)                                                                       \
     ([&]() SHAD_NO_INLINE {                                                                        \
         if (!(_a_)) [[unlikely]] {                                                                 \
-            LOG_CRITICAL(Debug, "Assertion Failed!\n" __VA_ARGS__);                                \
             assert_fail_impl();                                                                    \
         }                                                                                          \
     }())
 
 #define UNREACHABLE()                                                                              \
     do {                                                                                           \
-        LOG_CRITICAL(Debug, "Unreachable code!");                                                  \
-        unreachable_impl();                                                                        \
+    unreachable_impl();                                                                        \
     } while (0)
 
 #define UNREACHABLE_MSG(...)                                                                       \
     do {                                                                                           \
-        LOG_CRITICAL(Debug, "Unreachable code!\n" __VA_ARGS__);                                    \
-        unreachable_impl();                                                                        \
+    unreachable_impl();                                                                        \
     } while (0)
 
 #ifdef _DEBUG
