@@ -30,7 +30,7 @@ public:
                              std::span<const CryptoPP::byte, 256> ciphertext,
                              std::span<CryptoPP::byte, 256> decrypted);
     void aesCbcCfb128DecryptEntry(std::span<const CryptoPP::byte, 32> ivkey,
-                                  std::span<CryptoPP::byte> ciphertext,
+                                  std::span<const CryptoPP::byte> ciphertext,
                                   std::span<CryptoPP::byte> decrypted);
     void decryptEFSM(std::span<CryptoPP::byte, 16> trophyKey,
                      std::span<CryptoPP::byte, 16> NPcommID, std::span<CryptoPP::byte, 16> efsmIv,
