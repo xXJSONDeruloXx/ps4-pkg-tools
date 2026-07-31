@@ -4,10 +4,6 @@ set -e
 echo "====================== PS4 PKG Tools Unified Build Script ======================"
 echo "This script will build both macOS and Linux binaries"
 
-# Detect macOS architecture
-MACOS_ARCH="$(uname -m)"
-echo "Detected macOS architecture: ${MACOS_ARCH}"
-
 # Create output directories
 mkdir -p build linux-build
 
@@ -15,13 +11,10 @@ echo ""
 echo "===== PHASE 1: Building macOS Native Binary ====="
 
 # Build macOS binary
-echo "Building PS4 PKG Tools for macOS (${MACOS_ARCH})..."
+echo "Building PS4 PKG Tools for macOS..."
 (
     cd build
-    cmake -DCMAKE_BUILD_TYPE=Release \
-          -DBUILD_PKG_QT_GUI=ON \
-          -DCMAKE_OSX_ARCHITECTURES="${MACOS_ARCH}" \
-          ..
+    cmake -DBUILD_PKG_TOOL=ON .. 
     make -j$(sysctl -n hw.ncpu)
 )
 
@@ -58,9 +51,7 @@ docker run --rm -v "$(pwd):/app" ubuntu:22.04 bash -c '
     # Configure the project - using same structure as build-linux.sh
     mkdir -p build
     cd build
-    cmake -DCMAKE_BUILD_TYPE=Release \
-          -DBUILD_PKG_QT_GUI=ON \
-          ..
+    cmake -DBUILD_PKG_TOOL=ON ..
     
     # Build the project
     make -j$(nproc)
