@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <array>
-
+#include <exception>
 #include "crypto.h"
 
 CryptoPP::RSA::PrivateKey Crypto::key_pkg_derived_key3_keyset_init() {
@@ -121,21 +121,20 @@ void Crypto::aesCbcCfb128Decrypt(std::span<const CryptoPP::byte, 32> ivkey,
 }
 
 void Crypto::aesCbcCfb128DecryptEntry(std::span<const CryptoPP::byte, 32> ivkey,
-                                      std::span<CryptoPP::byte> ciphertext,
+                                      std::span<const CryptoPP::byte> ciphertext,
                                       std::span<CryptoPP::byte> decrypted) {
+    if (ciphertext.size() != decrypted.size()) {
+      throw std::length_error("aesCbcCfb128DecryptEntry: plaintext and ciphertext buffers must be equal length");
+    }
+
     std::array<CryptoPP::byte, CryptoPP::AES::DEFAULT_KEYLENGTH> key;
     std::array<CryptoPP::byte, CryptoPP::AES::DEFAULT_KEYLENGTH> iv;
 
     std::copy(ivkey.begin() + 16, ivkey.begin() + 16 + key.size(), key.begin());
     std::copy(ivkey.begin(), ivkey.begin() + iv.size(), iv.begin());
 
-    CryptoPP::AES::Decryption aesDecryption(key.data(), CryptoPP::AES::DEFAULT_KEYLENGTH);
-    CryptoPP::CBC_Mode_ExternalCipher::Decryption cbcDecryption(aesDecryption, iv.data());
-
-    for (size_t i = 0; i < decrypted.size(); i += CryptoPP::AES::BLOCKSIZE) {
-        cbcDecryption.ProcessData(decrypted.data() + i, ciphertext.data() + i,
-                                  CryptoPP::AES::BLOCKSIZE);
-    }
+    CryptoPP::CBC_Mode<CryptoPP::AES>::Decryption cbcDecryption{key.data(), key.size(), iv.data()};
+    cbcDecryption.ProcessData(decrypted.data(), ciphertext.data(), decrypted.size());
 }
 
 void Crypto::decryptEFSM(std::span<CryptoPP::byte, 16> trophyKey,
